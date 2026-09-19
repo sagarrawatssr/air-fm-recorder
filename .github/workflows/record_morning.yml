@@ -64,3 +64,22 @@ jobs:
             gh release upload "$DATE_TAG" "output/$TARGET_FILE" --clobber
             echo "Uploaded $TARGET_FILE successfully!"
           done
+
+          echo "Purging recordings older than 30 days..."
+          EXPIRED_TAG="archive-$(TZ='Asia/Kolkata' date -d '31 days ago' +'%Y-%m-%d')"
+          gh release delete "$EXPIRED_TAG" --yes --cleanup-tag || true
+
+          - name: Keepalive (Prevent 60-Day Inactivity)
+        # Runs once a week on Sundays
+        if: success() && startsWith(github.event_name, 'workflow_dispatch')
+        run: |
+          DAY_OF_WEEK="$(TZ='Asia/Kolkata' date +'%u')"
+          if [ "$DAY_OF_WEEK" -eq 7 ]; then
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keepalive ping $(date +'%Y-%m-%d')"
+            git push origin main
+            echo "Keepalive commit pushed successfully."
+          else
+            echo "Not Sunday; skipping keepalive commit."
+          fi
