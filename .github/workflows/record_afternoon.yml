@@ -1,0 +1,50 @@
+name: "2. Record FM Rainbow (01 PM - 07 PM)"
+
+on:
+  schedule:
+    # 1:00 PM IST is 07:30 AM UTC
+    - cron: '30 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  record_afternoon:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install FFmpeg & GitHub CLI
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg gh
+
+      - name: Record and Upload Hourly (Hours 6 to 11)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p output
+          DATE_STR=$(date +'%Y-%m-%d')
+          STREAM_URL="https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
+          RELEASE_TAG="archive-today"
+
+          # Ensure release exists
+          gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "Daily Radio Archive" --notes "Automated hourly recordings"
+
+          # Loop through hours 6 to 11 (1 PM to 7 PM)
+          for i in $(seq -w 6 11); do
+            FILE_NAME="hour_${i}.mp3"
+            echo "----------------------------------------"
+            echo "Recording Hour ${i} starting now..."
+            echo "----------------------------------------"
+
+            ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
+              -i "$STREAM_URL" \
+              -t 3600 \
+              -c:a libmp3lame -b:a 64k -ac 1 \
+              "output/$FILE_NAME"
+
+            echo "Hour ${i} complete. Uploading immediately to GitHub..."
+            gh release upload "$RELEASE_TAG" "output/$FILE_NAME" --clobber
+            echo "Hour ${i} is now live and available!"
+          done
