@@ -1,0 +1,42 @@
+name: "2. Record FM Rainbow (01 PM - 07 PM)"
+
+on:
+  schedule:
+    # 1:00 PM IST is 07:30 AM UTC
+    - cron: '30 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  record_afternoon:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Record 6 Hours (01:00 PM - 07:00 PM)
+        run: |
+          mkdir -p output
+          DATE_STR=$(date +'%Y-%m-%d')
+          STREAM_URL="https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
+          
+          # Slices starting at number 6 (hour_06.mp3 to hour_11.mp3)
+          ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
+            -i "$STREAM_URL" \
+            -t 21600 \
+            -c:a libmp3lame -b:a 64k -ac 1 \
+            -f segment -segment_time 3600 -segment_start_number 6 -reset_timestamps 1 \
+            "output/${DATE_STR}_hour_%02d.mp3"
+
+      - name: Publish Afternoon Audio Slices
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: archive-afternoon-${{ github.run_id }}
+          files: output/*.mp3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
