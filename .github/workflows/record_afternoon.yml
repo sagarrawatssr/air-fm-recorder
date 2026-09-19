@@ -24,27 +24,31 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p output
-          DATE_STR=$(date +'%Y-%m-%d')
+          DATE_TAG="archive-$(TZ='Asia/Kolkata' date +'%Y-%m-%d')"
           STREAM_URL="https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
-          RELEASE_TAG="archive-today"
 
-          # Ensure release exists
-          gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "Daily Radio Archive" --notes "Automated hourly recordings"
+          # Ensure today's release exists
+          gh release view "$DATE_TAG" || gh release create "$DATE_TAG" --title "Radio Archive $(TZ='Asia/Kolkata' date +'%Y-%m-%d')" --notes "Daily 1-hour slices"
 
           # Loop through hours 6 to 11 (1 PM to 7 PM)
           for i in $(seq -w 6 11); do
             FILE_NAME="hour_${i}.mp3"
-            echo "----------------------------------------"
-            echo "Recording Hour ${i} starting now..."
-            echo "----------------------------------------"
-
+            echo "Recording Hour ${i}..."
             ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
               -i "$STREAM_URL" \
               -t 3600 \
               -c:a libmp3lame -b:a 64k -ac 1 \
               "output/$FILE_NAME"
 
-            echo "Hour ${i} complete. Uploading immediately to GitHub..."
-            gh release upload "$RELEASE_TAG" "output/$FILE_NAME" --clobber
-            echo "Hour ${i} is now live and available!"
+            gh release upload "$DATE_TAG" "output/$FILE_NAME" --clobber
+            echo "Hour ${i} uploaded successfully!"
           done
+
+          echo "---------------------------------------------------------"
+          echo "Purging recordings older than 30 days (rolling 1-month)..."
+          echo "---------------------------------------------------------"
+          
+          # Deletes the release from 31 days ago (keeps exactly the last 30 days)
+          EXPIRED_TAG="archive-$(TZ='Asia/Kolkata' date -d '31 days ago' +'%Y-%m-%d')"
+          gh release delete "$EXPIRED_TAG" --yes --cleanup-tag || true
+          echo "Cleaned up $EXPIRED_TAG if it existed."
