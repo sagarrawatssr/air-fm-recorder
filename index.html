@@ -1,22 +1,39 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>AIR FM Rainbow 102.6 Live & Archive</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>AIR FM Rainbow 102.6 Delhi &bull; Live &amp; 30-Day Archive</title>
+  
+  <!-- Modern Inter & JetBrains Mono Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- HLS.js for direct stream parsing -->
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
   <style>
     :root {
-      --bg: #0b0f17;
-      --card: #151d28;
-      --card-active: #1d2838;
-      --blue: #2f81f7;
-      --blue-glow: rgba(47, 129, 247, 0.25);
-      --live-red: #ff3b30;
-      --text: #f0f6fc;
-      --text-muted: #8b949e;
-      --border: #212c3d;
-      --radius: 14px;
+      --bg: #07090e;
+      --bg-gradient: radial-gradient(circle at 50% -10%, #172438 0%, #0a0d15 65%, #05070a 100%);
+      --glass-bg: rgba(20, 26, 38, 0.72);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --glass-border-hover: rgba(255, 255, 255, 0.16);
+      --accent-blue: #3b82f6;
+      --accent-cyan: #06b6d4;
+      --accent-glow: rgba(59, 130, 246, 0.35);
+      --live-red: #ef4444;
+      --live-glow: rgba(239, 68, 68, 0.45);
+      --text-main: #f8fafc;
+      --text-dim: #94a3b8;
+      --text-muted: #64748b;
+      --radius-xl: 22px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-pill: 9999px;
+      --transition-smooth: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     * {
@@ -24,269 +41,560 @@
       margin: 0;
       padding: 0;
       -webkit-tap-highlight-color: transparent;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      user-select: none;
     }
 
     body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg);
-      color: var(--text);
-      padding: 12px;
+      background-image: var(--bg-gradient);
+      color: var(--text-main);
+      min-height: 100vh;
       display: flex;
       justify-content: center;
-      min-height: 100vh;
+      padding: 12px 12px 28px;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
-    .app {
+    .app-viewport {
       width: 100%;
-      max-width: 600px;
+      max-width: 540px;
       display: flex;
       flex-direction: column;
       gap: 14px;
-      padding-bottom: 25px;
+      position: relative;
     }
 
+    /* Top Navigation Header */
     header {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px 16px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: 14px 18px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
     }
 
-    .brand h1 {
+    .brand-title {
       font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 40%, #93c5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-sub {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      font-weight: 500;
+      margin-top: 1px;
+    }
+
+    .badge-freq {
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: #60a5fa;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 0.72rem;
+      font-family: 'JetBrains Mono', monospace;
       font-weight: 700;
-      color: #fff;
-      letter-spacing: -0.3px;
+      letter-spacing: 0.03em;
     }
 
-    .brand p {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    /* Autoplay Prompt Overlay for Mobile Browsers that Block Instant Audio */
-    .tap-overlay {
+    /* Autoplay helper banner */
+    .tap-autoplay-banner {
       display: none;
-      background: #238636;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
       color: #fff;
-      text-align: center;
-      padding: 12px;
-      border-radius: 12px;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
       font-weight: 700;
-      font-size: 0.9rem;
+      font-size: 0.84rem;
+      text-align: center;
       cursor: pointer;
-      box-shadow: 0 4px 15px rgba(35, 134, 54, 0.35);
-      animation: bounce 1.8s infinite;
+      box-shadow: 0 6px 20px var(--accent-glow);
+      animation: banner-pulse 1.8s infinite ease-in-out;
     }
 
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-3px); }
+    @keyframes banner-pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(0.985); }
     }
 
-    .player-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px;
+    /* Primary Player Deck */
+    .player-deck {
+      background: var(--glass-bg);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-xl);
+      padding: 20px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      gap: 16px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+      position: relative;
+      overflow: hidden;
     }
 
-    .player-meta {
+    .player-deck::before {
+      content: '';
+      position: absolute;
+      top: -50px;
+      right: -50px;
+      width: 160px;
+      height: 160px;
+      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .deck-top-row {
       display: flex;
-      align-items: center;
       justify-content: space-between;
+      align-items: center;
+      position: relative;
+      z-index: 1;
     }
 
-    .live-pill {
+    /* YouTube Style Live Pill */
+    .live-chip-btn {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
       font-size: 0.72rem;
       font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      padding: 6px 14px;
-      border-radius: 20px;
+      letter-spacing: 0.06em;
       cursor: pointer;
-      background: #1e2633;
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      transition: all 0.2s ease;
+      background: rgba(30, 41, 59, 0.75);
+      border: 1px solid var(--glass-border);
+      color: var(--text-dim);
+      transition: var(--transition-smooth);
     }
 
-    .live-pill .dot {
-      width: 7px;
-      height: 7px;
+    .live-chip-btn .pulse-dot {
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
-      background: var(--text-muted);
+      background: var(--text-dim);
+      transition: var(--transition-smooth);
     }
 
-    .live-pill.active {
-      background: rgba(255, 59, 48, 0.15);
-      border-color: rgba(255, 59, 48, 0.5);
+    .live-chip-btn.active {
+      background: rgba(239, 68, 68, 0.16);
+      border-color: rgba(239, 68, 68, 0.5);
       color: var(--live-red);
+      box-shadow: 0 0 16px var(--live-glow);
     }
 
-    .live-pill.active .dot {
+    .live-chip-btn.active .pulse-dot {
       background: var(--live-red);
-      box-shadow: 0 0 8px var(--live-red);
-      animation: pulse 1.5s infinite;
+      box-shadow: 0 0 10px var(--live-red);
+      animation: live-pulse 1.6s infinite ease-out;
     }
 
-    @keyframes pulse {
-      0% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.3; transform: scale(0.85); }
-      100% { opacity: 1; transform: scale(1); }
+    @keyframes live-pulse {
+      0% { transform: scale(0.9); opacity: 1; }
+      50% { transform: scale(1.35); opacity: 0.35; }
+      100% { transform: scale(0.9); opacity: 1; }
+    }
+
+    .mode-indicator {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    /* Metadata */
+    .track-meta {
+      position: relative;
+      z-index: 1;
     }
 
     .track-title {
-      font-size: 1.05rem;
-      font-weight: 600;
+      font-size: 1.25rem;
+      font-weight: 700;
       color: #fff;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      letter-spacing: -0.01em;
     }
 
-    .track-sub {
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      margin-top: 2px;
+    .track-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-top: 3px;
+      font-weight: 500;
     }
 
-    audio {
+    /* Audio Visualizer Canvas Container */
+    .visualizer-box {
       width: 100%;
-      height: 44px;
-      border-radius: 8px;
-      outline: none;
-    }
-
-    .controls-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-
-    .btn {
-      min-height: 44px;
-      background: #1c2534;
-      border: 1px solid var(--border);
-      color: var(--text);
-      font-size: 0.85rem;
-      font-weight: 600;
-      border-radius: 10px;
-      cursor: pointer;
+      height: 40px;
+      border-radius: var(--radius-md);
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.04);
       display: flex;
       align-items: center;
       justify-content: center;
+      overflow: hidden;
+      position: relative;
+      z-index: 1;
+    }
+
+    #visualizerCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Progress & Scrubbing Section */
+    .scrub-section {
+      display: flex;
+      flex-direction: column;
       gap: 6px;
-      transition: background 0.15s, border-color 0.15s;
+      position: relative;
+      z-index: 1;
     }
 
-    .btn:active {
-      background: #253347;
-      transform: scale(0.98);
+    .scrub-rail {
+      position: relative;
+      height: 7px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      overflow: hidden;
     }
 
-    .btn:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
-      transform: none;
+    .scrub-buffer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 0%;
+      background: rgba(255, 255, 255, 0.18);
+      border-radius: var(--radius-pill);
+      pointer-events: none;
+      transition: width 0.25s linear;
     }
 
-    .date-bar {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 10px 12px;
+    .scrub-active {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+      border-radius: var(--radius-pill);
+      box-shadow: 0 0 10px var(--accent-glow);
+      pointer-events: none;
+      transition: width 0.1s linear;
+    }
+
+    .time-strip {
+      display: flex;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Center Tactile Controls */
+    .deck-action-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      padding: 4px 0;
+      position: relative;
+      z-index: 1;
     }
 
-    .step-btn {
-      width: 42px;
-      height: 42px;
-      border-radius: 10px;
-      background: #1c2534;
-      border: 1px solid var(--border);
-      color: var(--text);
-      font-size: 1.1rem;
+    .circle-icon-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      padding: 10px;
+      border-radius: 50%;
+      transition: var(--transition-smooth);
     }
 
-    .step-btn:active {
-      background: #253347;
+    .circle-icon-btn:active {
+      transform: scale(0.92);
+      color: #fff;
+    }
+
+    .circle-icon-btn svg {
+      width: 24px;
+      height: 24px;
+      fill: currentColor;
+    }
+
+    .master-toggle-btn {
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 6px 20px var(--accent-glow);
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .master-toggle-btn:active {
+      transform: scale(0.92);
+      box-shadow: 0 2px 10px var(--accent-glow);
+    }
+
+    .master-toggle-btn svg {
+      width: 28px;
+      height: 28px;
+      fill: #fff;
+      margin-left: 3px;
+    }
+
+    .master-toggle-btn.is-playing svg {
+      margin-left: 0;
+    }
+
+    /* Volume & Speed Controller Row */
+    .deck-sub-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      position: relative;
+      z-index: 1;
+    }
+
+    .volume-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 48%;
+    }
+
+    .volume-box svg {
+      width: 18px;
+      height: 18px;
+      fill: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .volume-slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: var(--radius-pill);
+      background: rgba(255, 255, 255, 0.1);
+      outline: none;
+    }
+
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
+    }
+
+    .speed-pill-btn {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-pill);
+      padding: 4px 10px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      cursor: pointer;
+      gap: 4px;
+      transition: var(--transition-smooth);
+    }
+
+    .speed-pill-btn:active {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .speed-pill-btn.locked {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    /* Calendar & Date Selection Box */
+    .date-panel {
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .quick-chips-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .quick-chips-row::-webkit-scrollbar { display: none; }
+
+    .chip-btn {
+      flex: 1 0 auto;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--glass-border);
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 7px 12px;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      text-align: center;
+      transition: var(--transition-smooth);
+    }
+
+    .chip-btn.active {
+      background: var(--accent-blue);
+      border-color: #60a5fa;
+      color: #fff;
+      box-shadow: 0 2px 10px var(--accent-glow);
+    }
+
+    .calendar-stepper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .calendar-step-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--glass-border);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      flex-shrink: 0;
+    }
+
+    .calendar-step-btn:active {
+      background: rgba(255, 255, 255, 0.12);
+      transform: scale(0.96);
     }
 
     input[type="date"] {
       flex: 1;
-      height: 42px;
-      background: #0f1520;
-      border: 1px solid var(--border);
-      border-radius: 10px;
+      height: 44px;
+      background: rgba(10, 14, 22, 0.85);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md);
       color: #fff;
-      font-size: 0.9rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
       font-weight: 600;
       text-align: center;
-      padding: 0 10px;
       outline: none;
+      padding: 0 10px;
       -webkit-appearance: none;
     }
 
-    .timeline-section {
+    /* Timeline Section (Horizontal Swipeable Carousel) */
+    .timeline-container {
       display: flex;
       flex-direction: column;
       gap: 8px;
     }
 
-    .section-title {
-      font-size: 0.82rem;
-      font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      padding-left: 4px;
+    .section-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 4px;
     }
 
-    .timeline-scroll {
+    .section-label {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .sweep-action-btn {
+      background: transparent;
+      border: none;
+      color: #60a5fa;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
       display: flex;
-      gap: 8px;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .sweep-action-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .timeline-track {
+      display: flex;
+      gap: 10px;
       overflow-x: auto;
-      padding: 4px 2px 10px;
+      padding: 4px 2px 14px;
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x mandatory;
     }
-
-    .timeline-scroll::-webkit-scrollbar {
-      display: none;
-    }
+    .timeline-track::-webkit-scrollbar { display: none; }
 
     .slot-card {
-      flex: 0 0 100px;
-      height: 68px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      scroll-snap-align: start;
+      flex: 0 0 118px;
+      height: 76px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md);
+      padding: 10px 9px;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      justify-content: space-between;
       cursor: pointer;
-      user-select: none;
-      transition: all 0.15s ease;
+      transition: var(--transition-smooth);
     }
 
     .slot-card:active {
@@ -294,145 +602,243 @@
     }
 
     .slot-card.active {
-      background: var(--blue);
-      border-color: #58a6ff;
-      box-shadow: 0 4px 14px var(--blue-glow);
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.35), rgba(30, 58, 138, 0.5));
+      border-color: #60a5fa;
+      box-shadow: 0 4px 16px var(--accent-glow);
     }
 
-    .slot-card .slot-hour {
+    .slot-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .slot-num-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .slot-card.active .slot-num-badge {
+      color: #93c5fd;
+    }
+
+    .slot-wave-icon {
+      width: 12px;
+      height: 10px;
+      display: none;
+    }
+
+    .slot-card.active .slot-wave-icon {
+      display: block;
+    }
+
+    .slot-time-text {
       font-size: 0.82rem;
       font-weight: 700;
       color: #fff;
     }
 
-    .slot-card .slot-sub {
+    .slot-desc {
       font-size: 0.68rem;
-      color: var(--text-muted);
-      margin-top: 2px;
+      color: var(--text-dim);
     }
 
-    .slot-card.active .slot-sub {
-      color: #dbeafe;
-    }
-
-    .error-card {
+    /* Error Toast */
+    .toast-alert {
       display: none;
-      background: rgba(255, 59, 48, 0.1);
-      border: 1px solid rgba(255, 59, 48, 0.35);
-      border-radius: 10px;
-      padding: 12px;
-      font-size: 0.82rem;
-      color: #ff7b72;
-      line-height: 1.4;
-      text-align: center;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      gap: 10px;
+      align-items: center;
+      animation: fadeIn 0.2s ease-in;
+    }
+
+    .toast-alert p {
+      font-size: 0.8rem;
+      color: #fca5a5;
+      line-height: 1.35;
+      flex: 1;
+    }
+
+    .toast-alert button {
+      background: #ef4444;
+      border: none;
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
 <body>
 
-<div class="app">
+<div class="app-viewport">
   <header>
-    <div class="brand">
-      <h1>AIR FM Rainbow 102.6</h1>
-      <p>Delhi Live &amp; 30-Day Archive</p>
+    <div>
+      <h1 class="brand-title">AIR FM Rainbow</h1>
+      <p class="brand-sub">Delhi &bull; Live &amp; 30-Day Archive</p>
     </div>
+    <span class="badge-freq">102.6 MHz</span>
   </header>
 
-  <!-- Autoplay tap bar for mobile policy blocks -->
-  <div id="tapOverlay" class="tap-overlay" onclick="userTriggeredStart()">
-    ▶ Tap Here to Start Live Radio
+  <!-- Autoplay User Activation Banner for Mobile Browsers -->
+  <div id="tapBanner" class="tap-autoplay-banner" onclick="startAutoplayImmediate()">
+    &#9658; Tap to Start AIR FM Rainbow Radio
   </div>
 
-  <div class="player-card">
-    <div class="player-meta">
-      <button id="liveBtn" class="live-pill active" onclick="playLive()">
-        <span class="dot"></span> LIVE
+  <!-- Player Deck -->
+  <div class="player-deck">
+    <div class="deck-top-row">
+      <button id="livePillBtn" class="live-chip-btn active" onclick="switchToLiveMode()">
+        <span class="pulse-dot"></span> LIVE
       </button>
-      <span id="speedBadge" style="font-size: 0.75rem; color: var(--text-muted); font-weight:600;">1.0x (Normal)</span>
+      <span id="streamStateLabel" class="mode-indicator">Live Broadcast</span>
     </div>
 
-    <div>
-      <div id="trackTitle" class="track-title">AIR FM Rainbow Delhi</div>
-      <div id="trackSub" class="track-sub">Connecting live stream...</div>
+    <div class="track-meta">
+      <div id="trackHeadline" class="track-title">AIR FM Rainbow Delhi (102.6 MHz)</div>
+      <div id="trackSubtitle" class="track-subtitle">Real-time live edge broadcast</div>
     </div>
 
-    <audio id="audioElem" controls playsinline preload="auto"></audio>
-
-    <div id="errorCard" class="error-card">
-      Audio not available for this hour slot yet.
+    <!-- Reactive Dynamic Visualizer Canvas -->
+    <div class="visualizer-box">
+      <canvas id="visualizerCanvas"></canvas>
     </div>
 
-    <div class="controls-grid">
-      <button id="sweepBtn" class="btn" onclick="sweepNext()" disabled>
+    <!-- Scrubber / Custom Progress Bar -->
+    <div class="scrub-section">
+      <div id="scrubRail" class="scrub-rail" onclick="seekByScrub(event)">
+        <div id="bufferBar" class="scrub-buffer"></div>
+        <div id="progressBar" class="scrub-active"></div>
+      </div>
+      <div class="time-strip">
+        <span id="currentTimeDisplay">00:00</span>
+        <span id="totalDurationDisplay">LIVE</span>
+      </div>
+    </div>
+
+    <!-- Master Controls Row -->
+    <div class="deck-action-row">
+      <!-- Skip Back 15s -->
+      <button class="circle-icon-btn" onclick="stepAudio(-15)" title="Skip Back 15s">
+        <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.2 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
+      </button>
+
+      <!-- Center Master Play / Pause Button -->
+      <button id="masterPlayBtn" class="master-toggle-btn" onclick="togglePlayPause()">
+        <svg id="playIcon" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+        <svg id="pauseIcon" style="display:none;" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+
+      <!-- Skip Forward 15s -->
+      <button class="circle-icon-btn" onclick="stepAudio(15)" title="Skip Forward 15s">
+        <svg viewBox="0 0 24 24"><path d="M11.5 8c2.65 0 5.05.99 6.9 2.6L22 7v9h-9l3.62-3.62c-1.39-1.2-3.16-1.88-5.12-1.88-3.54 0-6.55 2.31-7.6 5.5l-2.37-.78C2.92 11.03 6.85 8 11.5 8z"/></svg>
+      </button>
+    </div>
+
+    <!-- Volume & Speed Controller Row -->
+    <div class="deck-sub-row">
+      <div class="volume-box">
+        <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+        <input type="range" id="volRange" class="volume-slider" min="0" max="1" step="0.05" value="1" oninput="changeVolume(this.value)">
+      </div>
+
+      <div id="speedPill" class="speed-pill-btn locked" onclick="cyclePlaybackSpeed()">
+        <span id="speedLabel">1.0x</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio Alert Toast -->
+  <div id="toastAlert" class="toast-alert">
+    <p id="toastMessage">Audio slice not found for this date &amp; hour. It might still be recording or expired.</p>
+    <button onclick="switchToLiveMode()">Go Live</button>
+  </div>
+
+  <!-- Date Selector with 30-Day Rolling Window and Quick Chips -->
+  <div class="date-panel">
+    <div class="quick-chips-row">
+      <button class="chip-btn active" id="chipToday" onclick="applyQuickDate(0)">Today</button>
+      <button class="chip-btn" id="chipYesterday" onclick="applyQuickDate(1)">Yesterday</button>
+      <button class="chip-btn" id="chip2Days" onclick="applyQuickDate(2)">2 Days Ago</button>
+    </div>
+
+    <div class="calendar-stepper">
+      <button class="calendar-step-btn" onclick="stepCalendarDay(-1)" title="Previous Day">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+      </button>
+      <input type="date" id="dateInput" onchange="onDateManualChange()">
+      <button class="calendar-step-btn" onclick="stepCalendarDay(1)" title="Next Day">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Horizontal Swipeable Timeline (07 AM - 07 PM) -->
+  <div class="timeline-container">
+    <div class="section-label-row">
+      <span class="section-label">Hourly Timeline (07 AM &ndash; 07 PM IST)</span>
+      <button id="sweepNextBtn" class="sweep-action-btn" onclick="sweepToNextHour()" disabled>
         Sweep Next &rarr;
       </button>
-      <button class="btn" onclick="playLive()">
-        Sync Live
-      </button>
     </div>
+
+    <div class="timeline-track" id="timelineTrack"></div>
   </div>
 
-  <div class="date-bar">
-    <button class="step-btn" onclick="stepDay(-1)" title="Previous Day">&#8249;</button>
-    <input type="date" id="datePicker" onchange="onDateChange()">
-    <button class="step-btn" onclick="stepDay(1)" title="Next Day">&#8250;</button>
-  </div>
-
-  <div class="timeline-section">
-    <div class="section-title">Hourly Playback Slices (Swipe to Browse)</div>
-    <div class="timeline-scroll" id="slotsTrack"></div>
-  </div>
+  <!-- Hidden Native Audio Engine -->
+  <audio id="coreAudio" playsinline preload="auto"></audio>
 </div>
 
 <script>
-  const STREAM_URL = "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8";
+  /* Core Constants & Stream Endpoint */
   const REPO_OWNER = "sagarrawatssr";
   const REPO_NAME = "air-fm-recorder";
+  const STREAM_URL = "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8";
 
-  const audio = document.getElementById("audioElem");
-  const liveBtn = document.getElementById("liveBtn");
-  const trackTitle = document.getElementById("trackTitle");
-  const trackSub = document.getElementById("trackSub");
-  const sweepBtn = document.getElementById("sweepBtn");
-  const errorCard = document.getElementById("errorCard");
-  const datePicker = document.getElementById("datePicker");
-  const slotsTrack = document.getElementById("slotsTrack");
-  const tapOverlay = document.getElementById("tapOverlay");
+  /* DOM Elements */
+  const coreAudio = document.getElementById("coreAudio");
+  const masterPlayBtn = document.getElementById("masterPlayBtn");
+  const playIcon = document.getElementById("playIcon");
+  const pauseIcon = document.getElementById("pauseIcon");
+  const livePillBtn = document.getElementById("livePillBtn");
+  const streamStateLabel = document.getElementById("streamStateLabel");
+  const trackHeadline = document.getElementById("trackHeadline");
+  const trackSubtitle = document.getElementById("trackSubtitle");
+  const sweepNextBtn = document.getElementById("sweepNextBtn");
+  const scrubRail = document.getElementById("scrubRail");
+  const progressBar = document.getElementById("progressBar");
+  const bufferBar = document.getElementById("bufferBar");
+  const currentTimeDisplay = document.getElementById("currentTimeDisplay");
+  const totalDurationDisplay = document.getElementById("totalDurationDisplay");
+  const speedPill = document.getElementById("speedPill");
+  const speedLabel = document.getElementById("speedLabel");
+  const toastAlert = document.getElementById("toastAlert");
+  const toastMessage = document.getElementById("toastMessage");
+  const dateInput = document.getElementById("dateInput");
+  const tapBanner = document.getElementById("tapBanner");
+  const timelineTrack = document.getElementById("timelineTrack");
+  const canvas = document.getElementById("visualizerCanvas");
+  const ctx = canvas.getContext("2d");
 
-  let hls = null;
-  let activeIndex = -1;
+  let hlsInstance = null;
+  let activeIndex = -1; // -1 represents LIVE
+  let currentSpeedIndex = 1;
+  const speedOptions = [0.75, 1.0, 1.25, 1.5];
 
-  // STRICT 1.0X SPEED ENFORCEMENT
-  function enforceNormalSpeed() {
-    if (audio.playbackRate !== 1.0) {
-      audio.playbackRate = 1.0;
-    }
-    if (audio.defaultPlaybackRate !== 1.0) {
-      audio.defaultPlaybackRate = 1.0;
-    }
-  }
-
-  audio.defaultPlaybackRate = 1.0;
-  audio.playbackRate = 1.0;
-  audio.addEventListener('play', enforceNormalSpeed);
-  audio.addEventListener('playing', enforceNormalSpeed);
-  audio.addEventListener('timeupdate', enforceNormalSpeed);
-  audio.addEventListener('ratechange', () => {
-    if (audio.playbackRate !== 1.0) {
-      audio.playbackRate = 1.0;
-    }
-  });
-
-  // Calendar bounds: 30 days
-  const now = new Date();
-  const past30 = new Date();
-  past30.setDate(now.getDate() - 30);
-
-  const toYMD = (d) => d.toISOString().split('T')[0];
-  datePicker.max = toYMD(now);
-  datePicker.min = toYMD(past30);
-  datePicker.value = toYMD(now);
-
+  /* 12 Hourly Broadcast Segments */
   const hourBlocks = [
     { label: "07 - 08 AM", file: "hour_00.mp3" },
     { label: "08 - 09 AM", file: "hour_01.mp3" },
@@ -448,144 +854,353 @@
     { label: "06 - 07 PM", file: "hour_11.mp3" }
   ];
 
+  /* 30-Day Rolling Date Calendar Boundaries */
+  const now = new Date();
+  const past30Days = new Date();
+  past30Days.setDate(now.getDate() - 30);
+
+  const toYMDString = (date) => date.toISOString().split("T")[0];
+  dateInput.max = toYMDString(now);
+  dateInput.min = toYMDString(past30Days);
+  dateInput.value = toYMDString(now);
+
+  /* Strict Normal Speed Enforcer for Live stream */
+  function enforceSpeedRules() {
+    if (activeIndex === -1) {
+      if (coreAudio.playbackRate !== 1.0) coreAudio.playbackRate = 1.0;
+      if (coreAudio.defaultPlaybackRate !== 1.0) coreAudio.defaultPlaybackRate = 1.0;
+    }
+  }
+
+  coreAudio.defaultPlaybackRate = 1.0;
+  coreAudio.playbackRate = 1.0;
+  coreAudio.addEventListener("play", enforceSpeedRules);
+  coreAudio.addEventListener("playing", enforceSpeedRules);
+  coreAudio.addEventListener("timeupdate", enforceSpeedRules);
+  coreAudio.addEventListener("ratechange", enforceSpeedRules);
+
+  /* Render 12 Horizontal Hourly Cards */
   hourBlocks.forEach((slot, idx) => {
     const card = document.createElement("div");
     card.className = "slot-card";
-    card.id = "card-" + idx;
+    card.id = `slot-card-${idx}`;
     card.innerHTML = `
-      <span class="slot-hour">${slot.label}</span>
-      <span class="slot-sub">Hour ${idx + 1}</span>
+      <div class="slot-card-top">
+        <span class="slot-num-badge">Slot ${idx + 1}</span>
+        <svg class="slot-wave-icon" viewBox="0 0 24 24" fill="#60a5fa"><path d="M12 3v18M8 6v12M4 9v6M16 6v12M20 9v6" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="slot-time-text">${slot.label}</div>
+      <div class="slot-desc">Recorded Hour</div>
     `;
     card.onclick = () => playArchive(idx);
-    slotsTrack.appendChild(card);
+    timelineTrack.appendChild(card);
   });
 
-  function playLive() {
+  /* Switch back to Live Stream */
+  function switchToLiveMode() {
     activeIndex = -1;
-    clearHighlights();
-    errorCard.style.display = "none";
+    clearTimelineHighlights();
+    toastAlert.style.display = "none";
 
-    liveBtn.classList.add("active");
-    trackTitle.innerText = "AIR FM Rainbow Delhi";
-    trackSub.innerText = "Real-time broadcast";
-    sweepBtn.disabled = true;
+    livePillBtn.classList.add("active");
+    streamStateLabel.innerText = "Live Broadcast";
+    trackHeadline.innerText = "AIR FM Rainbow Delhi (102.6 MHz)";
+    trackSubtitle.innerText = "Real-time live edge broadcast";
+    sweepNextBtn.disabled = true;
 
-    loadSource(STREAM_URL + "?ts=" + Date.now(), true);
+    // Hard lock on 1.0x speed for Live
+    speedPill.classList.add("locked");
+    speedLabel.innerText = "1.0x";
+    coreAudio.playbackRate = 1.0;
+
+    totalDurationDisplay.innerText = "LIVE";
+
+    // Flush any stale buffer with a fresh timestamp query
+    const freshLiveUrl = `${STREAM_URL}?ts=${Date.now()}`;
+    loadSource(freshLiveUrl, true);
   }
 
+  /* Switch to Recorded Archive Hour */
   function playArchive(index) {
     activeIndex = index;
-    clearHighlights();
-    errorCard.style.display = "none";
+    clearTimelineHighlights();
+    toastAlert.style.display = "none";
 
-    const card = document.getElementById("card-" + index);
+    const card = document.getElementById(`slot-card-${index}`);
     if (card) {
       card.classList.add("active");
       card.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
     }
 
-    liveBtn.classList.remove("active");
-    const chosenDate = datePicker.value;
-    trackTitle.innerText = `AIR Rainbow: ${hourBlocks[index].label}`;
-    trackSub.innerText = `Archive: ${chosenDate}`;
-    sweepBtn.disabled = false;
+    livePillBtn.classList.remove("active");
+    streamStateLabel.innerText = "Archive Mode";
 
-    const fileUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/archive-${chosenDate}/${hourBlocks[index].file}`;
+    const chosenDate = dateInput.value;
+    const slot = hourBlocks[index];
+
+    trackHeadline.innerText = `FM Rainbow: ${slot.label}`;
+    trackSubtitle.innerText = `Recorded Archive &bull; ${chosenDate}`;
+    sweepNextBtn.disabled = false;
+
+    // Custom playback speeds enabled for archives
+    speedPill.classList.remove("locked");
+    speedLabel.innerText = `${speedOptions[currentSpeedIndex]}x`;
+    coreAudio.playbackRate = speedOptions[currentSpeedIndex];
+
+    // EXACT RESOLVED FILE URL matching GitHub Releases
+    const fileUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/archive-${chosenDate}/${chosenDate}_${hourBlocks[index].file}`;
     loadSource(fileUrl, false);
   }
 
-  function sweepNext() {
-    if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
-      playArchive(activeIndex + 1);
-    } else if (activeIndex === hourBlocks.length - 1) {
-      alert("Reached the last recording slot for this day.");
-    }
-  }
-
-  function onDateChange() {
-    if (activeIndex >= 0) playArchive(activeIndex);
-  }
-
-  function stepDay(offset) {
-    const cur = new Date(datePicker.value);
-    cur.setDate(cur.getDate() + offset);
-    if (cur >= past30 && cur <= now) {
-      datePicker.value = toYMD(cur);
-      onDateChange();
-    }
-  }
-
-  audio.addEventListener("ended", () => {
-    if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
-      playArchive(activeIndex + 1);
-    }
-  });
-
-  audio.addEventListener("error", () => {
-    if (activeIndex >= 0) {
-      errorCard.style.display = "block";
-    }
-  });
-
-  function clearHighlights() {
-    document.querySelectorAll(".slot-card").forEach(c => c.classList.remove("active"));
-  }
-
+  /* Multi-Format Audio Loader */
   function loadSource(url, isLive) {
-    if (hls) {
-      hls.destroy();
-      hls = null;
+    if (hlsInstance) {
+      hlsInstance.destroy();
+      hlsInstance = null;
     }
 
-    enforceNormalSpeed();
-
-    if (isLive && Hls.isSupported()) {
-      hls = new Hls({
-        liveSyncDurationCount: 3,
-        maxLiveSyncPlaybackRate: 1.0, // Hard stop on speed alteration
-        enableWorker: true
-      });
-      hls.loadSource(url);
-      hls.attachMedia(audio);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        enforceNormalSpeed();
-        attemptAutoplay();
-      });
-    } else if (isLive && audio.canPlayType("application/vnd.apple.mpegurl")) {
-      audio.src = url;
-      enforceNormalSpeed();
-      attemptAutoplay();
+    if (isLive) {
+      if (Hls.isSupported()) {
+        hlsInstance = new Hls({
+          liveSyncDurationCount: 3,
+          maxLiveSyncPlaybackRate: 1.0, // Hard lock prevents 1.5x speed-up
+          enableWorker: true
+        });
+        hlsInstance.loadSource(url);
+        hlsInstance.attachMedia(coreAudio);
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+          coreAudio.playbackRate = 1.0;
+          attemptAudioPlay();
+        });
+      } else if (coreAudio.canPlayType("application/vnd.apple.mpegurl")) {
+        coreAudio.src = url;
+        coreAudio.playbackRate = 1.0;
+        attemptAudioPlay();
+      }
     } else {
-      audio.src = url;
-      enforceNormalSpeed();
-      attemptAutoplay();
+      coreAudio.src = url;
+      coreAudio.playbackRate = speedOptions[currentSpeedIndex];
+      attemptAudioPlay();
     }
   }
 
-  function attemptAutoplay() {
-    enforceNormalSpeed();
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise.then(() => {
-        // Autoplay succeeded
-        tapOverlay.style.display = "none";
-        enforceNormalSpeed();
+  function attemptAudioPlay() {
+    const promise = coreAudio.play();
+    if (promise !== undefined) {
+      promise.then(() => {
+        tapBanner.style.display = "none";
+        setPlayState(true);
       }).catch(() => {
-        // Autoplay policy prevented playback without tap
-        tapOverlay.style.display = "block";
+        // Autoplay policy blocked sound without interaction
+        tapBanner.style.display = "block";
+        setPlayState(false);
       });
     }
   }
 
-  function userTriggeredStart() {
-    enforceNormalSpeed();
-    audio.play().then(() => {
-      tapOverlay.style.display = "none";
+  function startAutoplayImmediate() {
+    coreAudio.play().then(() => {
+      tapBanner.style.display = "none";
+      setPlayState(true);
     }).catch(() => {});
   }
 
-  // Attempt initial load on page start
-  playLive();
+  function togglePlayPause() {
+    if (coreAudio.paused) {
+      coreAudio.play().then(() => setPlayState(true)).catch(() => {});
+    } else {
+      coreAudio.pause();
+      setPlayState(false);
+    }
+  }
+
+  function setPlayState(isPlaying) {
+    if (isPlaying) {
+      playIcon.style.display = "none";
+      pauseIcon.style.display = "block";
+      masterPlayBtn.classList.add("is-playing");
+    } else {
+      playIcon.style.display = "block";
+      pauseIcon.style.display = "none";
+      masterPlayBtn.classList.remove("is-playing");
+    }
+  }
+
+  function stepAudio(seconds) {
+    if (activeIndex === -1) return; // Skip disabled on live
+    coreAudio.currentTime = Math.max(0, Math.min(coreAudio.duration || 0, coreAudio.currentTime + seconds));
+  }
+
+  function seekByScrub(event) {
+    if (activeIndex === -1 || !coreAudio.duration) return;
+    const rect = scrubRail.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const fraction = Math.max(0, Math.min(1, clickX / rect.width));
+    coreAudio.currentTime = fraction * coreAudio.duration;
+  }
+
+  function changeVolume(val) {
+    coreAudio.volume = parseFloat(val);
+  }
+
+  function cyclePlaybackSpeed() {
+    if (activeIndex === -1) return; // Locked on Live
+    currentSpeedIndex = (currentSpeedIndex + 1) % speedOptions.length;
+    const newRate = speedOptions[currentSpeedIndex];
+    speedLabel.innerText = `${newRate}x`;
+    coreAudio.playbackRate = newRate;
+  }
+
+  function sweepToNextHour() {
+    if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
+      playArchive(activeIndex + 1);
+    }
+  }
+
+  /* Auto-sweep to next hour when archive segment ends */
+  coreAudio.addEventListener("ended", () => {
+    if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
+      playArchive(activeIndex + 1);
+    }
+  });
+
+  function formatSeconds(sec) {
+    if (isNaN(sec) || !isFinite(sec)) return "00:00";
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+
+  coreAudio.addEventListener("timeupdate", () => {
+    if (activeIndex === -1) {
+      currentTimeDisplay.innerText = "00:00";
+      totalDurationDisplay.innerText = "LIVE";
+      progressBar.style.width = "100%";
+      return;
+    }
+
+    const cur = coreAudio.currentTime || 0;
+    const dur = coreAudio.duration || 0;
+    currentTimeDisplay.innerText = formatSeconds(cur);
+    totalDurationDisplay.innerText = formatSeconds(dur);
+
+    if (dur > 0) {
+      const pct = (cur / dur) * 100;
+      progressBar.style.width = `${pct}%`;
+    }
+  });
+
+  coreAudio.addEventListener("progress", () => {
+    if (activeIndex !== -1 && coreAudio.buffered.length > 0 && coreAudio.duration) {
+      const end = coreAudio.buffered.end(coreAudio.buffered.length - 1);
+      const bufPct = (end / coreAudio.duration) * 100;
+      bufferBar.style.width = `${Math.min(100, bufPct)}%`;
+    }
+  });
+
+  coreAudio.addEventListener("play", () => setPlayState(true));
+  coreAudio.addEventListener("pause", () => setPlayState(false));
+
+  coreAudio.addEventListener("error", () => {
+    if (activeIndex >= 0) {
+      const chosenDate = dateInput.value;
+      toastMessage.innerText = `Recording not found (${chosenDate}_${hourBlocks[activeIndex].file}). It may still be recording or expired.`;
+      toastAlert.style.display = "flex";
+      setPlayState(false);
+    }
+  });
+
+  function clearTimelineHighlights() {
+    document.querySelectorAll(".slot-card").forEach(c => c.classList.remove("active"));
+  }
+
+  /* Date Stepper & Quick Filter Helpers */
+  function applyQuickDate(daysAgo) {
+    const d = new Date();
+    d.setDate(d.getDate() - daysAgo);
+    dateInput.value = toYMDString(d);
+    updateQuickChipStyles();
+    if (activeIndex >= 0) playArchive(activeIndex);
+  }
+
+  function updateQuickChipStyles() {
+    const selected = dateInput.value;
+    const todayStr = toYMDString(now);
+    
+    const yest = new Date(); yest.setDate(yest.getDate() - 1);
+    const yestStr = toYMDString(yest);
+
+    const d2 = new Date(); d2.setDate(d2.getDate() - 2);
+    const d2Str = toYMDString(d2);
+
+    document.getElementById("chipToday").classList.toggle("active", selected === todayStr);
+    document.getElementById("chipYesterday").classList.toggle("active", selected === yestStr);
+    document.getElementById("chip2Days").classList.toggle("active", selected === d2Str);
+  }
+
+  function stepCalendarDay(offset) {
+    const cur = new Date(dateInput.value);
+    cur.setDate(cur.getDate() + offset);
+    if (cur >= past30Days && cur <= now) {
+      dateInput.value = toYMDString(cur);
+      updateQuickChipStyles();
+      if (activeIndex >= 0) playArchive(activeIndex);
+    }
+  }
+
+  function onDateManualChange() {
+    updateQuickChipStyles();
+    if (activeIndex >= 0) playArchive(activeIndex);
+  }
+
+  /* Reactive Audio Visualizer Animation Loop */
+  function resizeCanvas() {
+    canvas.width = canvas.parentElement.clientWidth;
+    canvas.height = canvas.parentElement.clientHeight;
+  }
+  window.addEventListener("resize", resizeCanvas);
+  resizeCanvas();
+
+  let wavePhase = 0;
+  function drawVisualizer() {
+    requestAnimationFrame(drawVisualizer);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const isPlaying = !coreAudio.paused && coreAudio.currentTime > 0;
+    const barCount = 30;
+    const gap = 3;
+    const totalGap = gap * (barCount - 1);
+    const barWidth = (canvas.width - totalGap) / barCount;
+
+    if (isPlaying) wavePhase += 0.085;
+
+    for (let i = 0; i < barCount; i++) {
+      let barHeight = 4;
+      if (isPlaying) {
+        const harmonic1 = Math.sin(wavePhase + i * 0.35);
+        const harmonic2 = Math.cos(wavePhase * 0.75 + i * 0.2);
+        const amp = Math.abs(harmonic1 * 0.65 + harmonic2 * 0.35);
+        barHeight = Math.max(4, amp * (canvas.height - 8));
+      }
+
+      const x = i * (barWidth + gap);
+      const y = (canvas.height - barHeight) / 2;
+
+      const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      grad.addColorStop(0, '#60a5fa');
+      grad.addColorStop(1, '#06b6d4');
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(x, y, barWidth, barHeight, 2);
+      ctx.fill();
+    }
+  }
+  drawVisualizer();
+
+  /* Initial Boot to Live Radio */
+  switchToLiveMode();
 </script>
 </body>
 </html>
+```
