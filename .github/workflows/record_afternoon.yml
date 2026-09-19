@@ -1,13 +1,14 @@
 name: "2. Record FM Rainbow (01 PM - 07 PM)"
 
 on:
-  schedule:
-    # 1:00 PM IST is 07:30 AM UTC
-    - cron: '30 7 * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
 
 jobs:
   record_afternoon:
@@ -19,31 +20,49 @@ jobs:
       - name: Install FFmpeg & GitHub CLI
         run: sudo apt-get update && sudo apt-get install -y ffmpeg gh
 
-      - name: Record & Upload Hourly (Hours 06 to 11)
+      - name: Record & Save by Dominant Slot Time
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p output
-          DATE_STR="$(TZ='Asia/Kolkata' date +'%Y-%m-%d')"
-          DATE_TAG="archive-${DATE_STR}"
           STREAM_URL="https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
 
-          gh release view "$DATE_TAG" || gh release create "$DATE_TAG" --title "Radio Archive ${DATE_STR}" --notes "Daily recordings for ${DATE_STR}"
-
-          # Loop through afternoon hours 06 to 11 (1 PM - 7 PM)
           for i in $(seq -w 6 11); do
-            FILE_NAME="${DATE_STR}_hour_${i}.mp3"
-            echo "Recording ${FILE_NAME}..."
-
+            TMP_FILE="output/temp_rec_${i}.mp3"
+            
+            echo "--- Recording hour chunk $i for 3600 seconds ---"
             ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
+              -fflags +nobuffer+flush_packets \
+              -live_start_index -1 \
               -i "$STREAM_URL" \
               -t 3600 \
               -c:a libmp3lame -b:a 64k -ac 1 \
-              "output/$FILE_NAME"
+              "$TMP_FILE"
 
-            echo "Uploading ${FILE_NAME}..."
-            gh release upload "$DATE_TAG" "output/$FILE_NAME" --clobber
-            echo "Uploaded ${FILE_NAME} successfully!"
+            # Determine IST date and the dominant hour via recording midpoint (~30 mins ago)
+            REC_DATE="$(TZ='Asia/Kolkata' date -d '30 minutes ago' +'%Y-%m-%d')"
+            MID_HOUR="$(TZ='Asia/Kolkata' date -d '30 minutes ago' +'%-H')"
+            DATE_TAG="archive-${REC_DATE}"
+
+            # Map IST 24-hr clock (13 to 18) to slot suffix (06 to 11)
+            case "$MID_HOUR" in
+              13) SLOT="06" ;;
+              14) SLOT="07" ;;
+              15) SLOT="08" ;;
+              16) SLOT="09" ;;
+              17) SLOT="10" ;;
+              18) SLOT="11" ;;
+              *)  SLOT="$i" ;; # fallback to loop index if triggered outside normal afternoon window
+            esac
+
+            TARGET_FILE="${REC_DATE}_hour_${SLOT}.mp3"
+            mv "$TMP_FILE" "output/$TARGET_FILE"
+            echo "Audio midpoint fell in hour $MID_HOUR IST. Saved as: $TARGET_FILE"
+
+            # Ensure release container exists and upload immediately
+            gh release view "$DATE_TAG" || gh release create "$DATE_TAG" --title "Radio Archive ${REC_DATE}" --notes "Recordings for ${REC_DATE}"
+            gh release upload "$DATE_TAG" "output/$TARGET_FILE" --clobber
+            echo "Uploaded $TARGET_FILE successfully!"
           done
 
           echo "Purging recordings older than 30 days..."
