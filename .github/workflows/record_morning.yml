@@ -2,8 +2,7 @@ name: "1. Record FM Rainbow (07 AM - 01 PM)"
 
 on:
   schedule:
-    # 7:00 AM IST is 01:30 AM UTC
-    - cron: '30 1 * * *'
+    - cron: '30 1 * * *'  # 7:00 AM IST
   workflow_dispatch:
 
 permissions:
@@ -24,30 +23,28 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p output
-          DATE_TAG="archive-$(TZ='Asia/Kolkata' date +'%Y-%m-%d')"
+          # Formats exact Indian Standard Time Date: 2026-09-19
+          DATE_STR="$(TZ='Asia/Kolkata' date +'%Y-%m-%d')"
+          DATE_TAG="archive-${DATE_STR}"
           STREAM_URL="https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
 
-          # Ensure today's release exists
-          gh release view "$DATE_TAG" || gh release create "$DATE_TAG" --title "Radio Archive $(TZ='Asia/Kolkata' date +'%Y-%m-%d')" --notes "Daily 1-hour slices"
+          # Create or target the exact date release
+          gh release view "$DATE_TAG" || gh release create "$DATE_TAG" --title "Radio Archive ${DATE_STR}" --notes "Recordings for ${DATE_STR}"
 
-          # Loop through hours 00 to 05 (7 AM to 1 PM)
           for i in $(seq -w 0 5); do
-            FILE_NAME="hour_${i}.mp3"
-            echo "----------------------------------------"
-            echo "Recording Morning Slot ${i} (Hour $((10#$i + 1)) of 12)..."
-            echo "----------------------------------------"
-            
+            FILE_NAME="${DATE_STR}_hour_${i}.mp3"
+            echo "Recording ${FILE_NAME}..."
+
             ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
               -i "$STREAM_URL" \
               -t 3600 \
               -c:a libmp3lame -b:a 64k -ac 1 \
               "output/$FILE_NAME"
 
-            echo "Slot ${i} complete. Uploading immediately to GitHub..."
             gh release upload "$DATE_TAG" "output/$FILE_NAME" --clobber
-            echo "Morning slot ${i} uploaded successfully!"
+            echo "Uploaded $FILE_NAME successfully!"
           done
 
-          echo "Purging recordings older than 30 days..."
+          # Rolling 30 days purge
           EXPIRED_TAG="archive-$(TZ='Asia/Kolkata' date -d '31 days ago' +'%Y-%m-%d')"
           gh release delete "$EXPIRED_TAG" --yes --cleanup-tag || true
