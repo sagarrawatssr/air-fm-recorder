@@ -2,138 +2,374 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AIR FM Rainbow 102.6 Live & 30-Day Archive</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AIR FM Rainbow 102.6 Live & Archive</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     :root {
-      --bg: #0d1117;
-      --card: #161b22;
-      --accent: #238636;
+      --bg: #0b0f17;
+      --card: #151d28;
+      --card-active: #1d2838;
       --blue: #2f81f7;
-      --live-red: #f85149;
-      --text: #c9d1d9;
+      --blue-glow: rgba(47, 129, 247, 0.25);
+      --live-red: #ff3b30;
+      --text: #f0f6fc;
       --text-muted: #8b949e;
-      --border: #30363d;
+      --border: #212c3d;
+      --radius: 14px;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: var(--bg); color: var(--text); padding: 16px; display: flex; justify-content: center; }
-    .container { max-width: 800px; width: 100%; display: flex; flex-direction: column; gap: 16px; }
 
-    header { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: 12px; }
-    h1 { font-size: 1.35rem; color: #f0f6fc; margin-bottom: 4px; }
-    p.sub { font-size: 0.85rem; color: var(--text-muted); }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
 
-    .player-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
-    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    
+    body {
+      background: var(--bg);
+      color: var(--text);
+      padding: 12px;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding-bottom: 20px;
+    }
+
+    /* Header */
+    header {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.3px;
+    }
+
+    .brand p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Player Card */
+    .player-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .player-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* YouTube Style Live Badge */
     .live-pill {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
-      padding: 5px 12px; border-radius: 20px; cursor: pointer;
-      background: #21262d; border: 1px solid var(--border); color: var(--text-muted);
-      transition: 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      background: #1e2633;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      transition: all 0.2s ease;
     }
-    .live-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+
+    .live-pill .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
     .live-pill.active {
-      background: rgba(248, 81, 73, 0.15);
-      border-color: rgba(248, 81, 73, 0.4);
+      background: rgba(255, 59, 48, 0.15);
+      border-color: rgba(255, 59, 48, 0.5);
       color: var(--live-red);
     }
+
     .live-pill.active .dot {
       background: var(--live-red);
       box-shadow: 0 0 8px var(--live-red);
       animation: pulse 1.5s infinite;
     }
+
     @keyframes pulse {
       0% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.3; transform: scale(0.85); }
       100% { opacity: 1; transform: scale(1); }
     }
 
-    #statusText { font-size: 0.8rem; color: var(--text-muted); }
-    audio { width: 100%; margin: 12px 0; }
-
-    /* Date Controls */
-    .date-nav-bar {
-      display: flex; gap: 8px; align-items: center; margin: 12px 0; flex-wrap: wrap;
-      background: #11161d; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+    .track-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
+
+    .track-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    audio {
+      width: 100%;
+      height: 44px;
+      border-radius: 8px;
+      outline: none;
+    }
+
+    /* Mobile-Action Buttons */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .btn {
+      min-height: 44px;
+      background: #1c2534;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .btn:active {
+      background: #253347;
+      transform: scale(0.98);
+    }
+
+    .btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Date Bar (Compact Mobile Style) */
+    .date-bar {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .step-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: #1c2534;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .step-btn:active {
+      background: #253347;
+    }
+
     input[type="date"] {
-      background: #1c2430; border: 1px solid var(--border); color: #fff;
-      padding: 6px 10px; border-radius: 6px; font-size: 0.85rem; outline: none;
+      flex: 1;
+      height: 42px;
+      background: #0f1520;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-align: center;
+      padding: 0 10px;
+      outline: none;
+      -webkit-appearance: none;
     }
 
-    .actions-row { display: flex; gap: 10px; flex-wrap: wrap; }
-    button.btn {
-      background: #21262d; border: 1px solid var(--border); color: #c9d1d9;
-      padding: 8px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 600;
-      cursor: pointer; transition: 0.2s;
+    /* Hourly Timeline (Horizontal Swipe Carousel for Mobile) */
+    .timeline-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
-    button.btn:hover:not(:disabled) { background: #30363d; }
-    button.btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
-    .section-title { font-size: 0.95rem; font-weight: 600; margin: 16px 0 10px; color: #f0f6fc; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
-    .slot-pill {
-      background: #161b22; border: 1px solid var(--border); border-radius: 8px;
-      padding: 10px 6px; text-align: center; cursor: pointer; color: var(--text);
-      transition: 0.2s;
+    .section-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      padding-left: 4px;
     }
-    .slot-pill:hover { border-color: var(--blue); }
-    .slot-pill.active { background: var(--blue); color: #fff; font-weight: bold; border-color: #58a6ff; }
-    .slot-pill span.hour { font-size: 0.82rem; display: block; }
-    .slot-pill span.num { font-size: 0.68rem; color: var(--text-muted); }
-    .slot-pill.active span.num { color: #e6edf3; }
 
-    .toast-error {
-      display: none; background: rgba(248, 81, 73, 0.1); border: 1px solid var(--live-red);
-      color: #ff7b72; padding: 10px; border-radius: 6px; font-size: 0.85rem; margin-top: 10px;
+    .timeline-scroll {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 4px 2px 10px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .timeline-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .slot-card {
+      flex: 0 0 100px;
+      height: 68px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+
+    .slot-card:active {
+      transform: scale(0.96);
+    }
+
+    .slot-card.active {
+      background: var(--blue);
+      border-color: #58a6ff;
+      box-shadow: 0 4px 14px var(--blue-glow);
+    }
+
+    .slot-card .slot-hour {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .slot-card .slot-sub {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .slot-card.active .slot-sub {
+      color: #dbeafe;
+    }
+
+    /* Error Toast */
+    .error-card {
+      display: none;
+      background: rgba(255, 59, 48, 0.1);
+      border: 1px solid rgba(255, 59, 48, 0.35);
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 0.82rem;
+      color: #ff7b72;
+      line-height: 1.4;
+      text-align: center;
     }
   </style>
 </head>
 <body>
 
-<div class="container">
+<div class="app">
+  <!-- Header -->
   <header>
-    <h1>AIR FM Rainbow 102.6 Delhi</h1>
-    <p class="sub">Real-time radio &amp; 30-day hourly rolling archives (07:00 AM &ndash; 07:00 PM IST)</p>
+    <div class="brand">
+      <h1>AIR FM Rainbow 102.6</h1>
+      <p>Delhi Live &amp; 30-Day Hourly Archive</p>
+    </div>
   </header>
 
+  <!-- Player Box -->
   <div class="player-card">
-    <div class="top-bar">
-      <button id="livePill" class="live-pill active" onclick="playLive()">
+    <div class="player-meta">
+      <!-- YouTube-style Live Pill -->
+      <button id="liveBtn" class="live-pill active" onclick="playLive()">
         <span class="dot"></span> LIVE
       </button>
-      <span id="statusText">Playing Live Broadcast</span>
+      <span id="badgeStatus" style="font-size: 0.75rem; color: var(--text-muted);">Delhi Feed</span>
     </div>
 
-    <h2 id="nowPlayingTitle" style="font-size: 1.1rem; color: #f0f6fc;">AIR FM Rainbow Delhi (Live)</h2>
-    <audio id="audioElem" controls></audio>
-    
-    <div id="errorBox" class="toast-error">
-      This hour slice was not found for the selected date. It may still be recording or was purged.
+    <div>
+      <div id="trackTitle" class="track-title">AIR FM Rainbow Delhi</div>
+      <div id="trackSub" class="track-sub">Real-time broadcast</div>
     </div>
 
-    <!-- 30-Day Date Selector with Quick Step Buttons -->
-    <div class="date-nav-bar">
-      <button class="btn" style="padding: 5px 10px;" onclick="stepDay(-1)">&larr; Prev Day</button>
-      <input type="date" id="datePicker" onchange="onDateChange()">
-      <button class="btn" style="padding: 5px 10px;" onclick="stepDay(1)">Next Day &rarr;</button>
-      <span style="font-size: 0.75rem; color:var(--text-muted); margin-left: auto;">Last 30 days stored</span>
+    <audio id="audioElem" controls playsinline></audio>
+
+    <div id="errorCard" class="error-card">
+      Audio not found for this hour &amp; date. It may still be recording or expired.
     </div>
 
-    <div class="actions-row">
+    <div class="controls-grid">
       <button id="sweepBtn" class="btn" onclick="sweepNext()" disabled>
-        Sweep to Next Hour &rarr;
+        Sweep Next &rarr;
       </button>
-      <button class="btn" onclick="playLive()">Sync Back to Live</button>
+      <button class="btn" onclick="playLive()">
+        Sync Live
+      </button>
     </div>
   </div>
 
-  <div>
-    <div class="section-title">Hourly Slices for Selected Date</div>
-    <div class="grid" id="slotsGrid"></div>
+  <!-- Mobile Date Stepper -->
+  <div class="date-bar">
+    <button class="step-btn" onclick="stepDay(-1)" title="Previous Day">&#8249;</button>
+    <input type="date" id="datePicker" onchange="onDateChange()">
+    <button class="step-btn" onclick="stepDay(1)" title="Next Day">&#8250;</button>
+  </div>
+
+  <!-- Horizontal Swipeable Timeline (Hours 07 AM - 07 PM) -->
+  <div class="timeline-section">
+    <div class="section-title">Hourly Slices (Swipe to Browse)</div>
+    <div class="timeline-scroll" id="slotsTrack">
+      <!-- Populated via JS -->
+    </div>
   </div>
 </div>
 
@@ -143,25 +379,26 @@
   const REPO_NAME = "air-fm-recorder";
 
   const audio = document.getElementById("audioElem");
-  const livePill = document.getElementById("livePill");
-  const statusText = document.getElementById("statusText");
-  const nowPlayingTitle = document.getElementById("nowPlayingTitle");
+  const liveBtn = document.getElementById("liveBtn");
+  const trackTitle = document.getElementById("trackTitle");
+  const trackSub = document.getElementById("trackSub");
   const sweepBtn = document.getElementById("sweepBtn");
-  const errorBox = document.getElementById("errorBox");
+  const errorCard = document.getElementById("errorCard");
   const datePicker = document.getElementById("datePicker");
+  const slotsTrack = document.getElementById("slotsTrack");
 
-  let hlsInstance = null;
-  let activeIndex = -1;
+  let hls = null;
+  let activeIndex = -1; // -1 represents LIVE
 
-  // Set 30-Day boundary on the calendar
-  const today = new Date();
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(today.getDate() - 30);
+  // Calendar bounds: 30 days rolling
+  const now = new Date();
+  const past30 = new Date();
+  past30.setDate(now.getDate() - 30);
 
-  const formatDate = (d) => d.toISOString().split('T')[0];
-  datePicker.max = formatDate(today);
-  datePicker.min = formatDate(thirtyDaysAgo);
-  datePicker.value = formatDate(today);
+  const toYMD = (d) => d.toISOString().split('T')[0];
+  datePicker.max = toYMD(now);
+  datePicker.min = toYMD(past30);
+  datePicker.value = toYMD(now);
 
   const hourBlocks = [
     { label: "07 - 08 AM", file: "hour_00.mp3" },
@@ -178,43 +415,60 @@
     { label: "06 - 07 PM", file: "hour_11.mp3" }
   ];
 
-  const grid = document.getElementById("slotsGrid");
-  hourBlocks.forEach((slot, i) => {
-    const el = document.createElement("div");
-    el.className = "slot-pill";
-    el.id = "hour-btn-" + i;
-    el.innerHTML = `<span class="hour">${slot.label}</span><span class="num">Hour ${i+1}</span>`;
-    el.onclick = () => playArchive(i);
-    grid.appendChild(el);
+  // Render Horizontal Cards
+  hourBlocks.forEach((slot, idx) => {
+    const card = document.createElement("div");
+    card.className = "slot-card";
+    card.id = "card-" + idx;
+    card.innerHTML = `
+      <span class="slot-hour">${slot.label}</span>
+      <span class="slot-sub">Hour ${idx + 1}</span>
+    `;
+    card.onclick = () => playArchive(idx);
+    slotsTrack.appendChild(card);
   });
 
   function playLive() {
     activeIndex = -1;
-    clearActiveButtons();
-    errorBox.style.display = "none";
+    clearHighlights();
+    errorCard.style.display = "none";
 
-    livePill.classList.add("active");
-    statusText.innerText = "Playing Live Broadcast";
-    nowPlayingTitle.innerText = "AIR FM Rainbow Delhi (Live)";
+    liveBtn.classList.add("active");
+    trackTitle.innerText = "AIR FM Rainbow Delhi";
+    trackSub.innerText = "Real-time broadcast";
     sweepBtn.disabled = true;
 
-    loadLiveStream(STREAM_URL + "?ts=" + Date.now());
+    loadSource(STREAM_URL + "?ts=" + Date.now(), true);
   }
 
   function playArchive(index) {
     activeIndex = index;
-    clearActiveButtons();
-    errorBox.style.display = "none";
+    clearHighlights();
+    errorCard.style.display = "none";
 
-    const selectedDate = datePicker.value;
-    document.getElementById("hour-btn-" + index).classList.add("active");
-    livePill.classList.remove("active");
-    statusText.innerText = `Archive: ${selectedDate}`;
-    nowPlayingTitle.innerText = `AIR Rainbow: ${hourBlocks[index].label} (${selectedDate})`;
+    const card = document.getElementById("card-" + index);
+    if (card) {
+      card.classList.add("active");
+      // Auto-scroll timeline to keep active hour in mobile view
+      card.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    }
+
+    liveBtn.classList.remove("active");
+    const chosenDate = datePicker.value;
+    trackTitle.innerText = `AIR Rainbow: ${hourBlocks[index].label}`;
+    trackSub.innerText = `Archive: ${chosenDate}`;
     sweepBtn.disabled = false;
 
-    const fileUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/archive-${selectedDate}/${hourBlocks[index].file}`;
-    loadStaticAudio(fileUrl);
+    const fileUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/archive-${chosenDate}/${hourBlocks[index].file}`;
+    loadSource(fileUrl, false);
+  }
+
+  function sweepNext() {
+    if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
+      playArchive(activeIndex + 1);
+    } else if (activeIndex === hourBlocks.length - 1) {
+      alert("Reached the last 6-7 PM slot for this day.");
+    }
   }
 
   function onDateChange() {
@@ -222,221 +476,53 @@
   }
 
   function stepDay(offset) {
-    const current = new Date(datePicker.value);
-    current.setDate(current.getDate() + offset);
-    if (current >= thirtyDaysAgo && current <= today) {
-      datePicker.value = formatDate(current);
+    const cur = new Date(datePicker.value);
+    cur.setDate(cur.getDate() + offset);
+    if (cur >= past30 && cur <= now) {
+      datePicker.value = toYMD(cur);
       onDateChange();
     }
   }
 
-  function sweepNext() {
-    if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
-      playArchive(activeIndex + 1);
-    } else if (activeIndex === hourBlocks.length - 1) {
-      alert("Reached the last recording slot of this day (06-07 PM).");
-    }
-  }
-
+  // Auto sweep when audio ends
   audio.addEventListener("ended", () => {
     if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
       playArchive(activeIndex + 1);
     }
   });
 
+  // Handle missing audio gracefully
   audio.addEventListener("error", () => {
     if (activeIndex >= 0) {
-      errorBox.style.display = "block";
+      errorCard.style.display = "block";
     }
   });
 
-  function clearActiveButtons() {
-    document.querySelectorAll(".slot-pill").forEach(btn => btn.classList.remove("active"));
+  function clearHighlights() {
+    document.querySelectorAll(".slot-card").forEach(c => c.classList.remove("active"));
   }
 
-  function loadLiveStream(url) {
-    if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
-    if (Hls.isSupported()) {
-      hlsInstance = new Hls({ liveSyncDurationCount: 2, maxLiveSyncPlaybackRate: 1.5 });
-      hlsInstance.loadSource(url);
-      hlsInstance.attachMedia(audio);
-      hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => audio.play().catch(() => {}));
-    } else if (audio.canPlayType("application/vnd.apple.mpegurl")) {
+  function loadSource(url, isLive) {
+    if (hls) {
+      hls.destroy();
+      hls = null;
+    }
+
+    if (isLive && Hls.isSupported()) {
+      hls = new Hls({ liveSyncDurationCount: 2, maxLiveSyncPlaybackRate: 1.5 });
+      hls.loadSource(url);
+      hls.attachMedia(audio);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => audio.play().catch(() => {}));
+    } else if (isLive && audio.canPlayType("application/vnd.apple.mpegurl")) {
+      audio.src = url;
+      audio.play().catch(() => {});
+    } else {
       audio.src = url;
       audio.play().catch(() => {});
     }
   }
 
-  function loadStaticAudio(url) {
-    if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
-    audio.src = url;
-    audio.play().catch(() => {});
-  }
-
-  playLive();
-</script>
-</body>
-</html>
-  <header>
-    <h1>AIR FM Rainbow 102.6 Delhi</h1>
-    <p class="sub">Continuous cloud recording &amp; 1-hour archive player (07:00 AM &ndash; 07:00 PM IST)</p>
-  </header>
-
-  <div class="player-card">
-    <div class="top-bar">
-      <!-- Live Button (YouTube Style) -->
-      <button id="livePill" class="live-pill active" onclick="playLive()">
-        <span class="dot"></span> LIVE
-      </button>
-      <span id="statusText">Playing Live Broadcast</span>
-    </div>
-
-    <h2 id="nowPlayingTitle" style="font-size: 1.1rem; color: #f0f6fc;">AIR FM Rainbow Delhi (Live)</h2>
-    <audio id="audioElem" controls></audio>
-    
-    <div id="errorBox" class="toast-error">
-      This hour slice has not finished recording yet today. Please choose an earlier hour or return to Live.
-    </div>
-
-    <div class="actions-row">
-      <!-- Sweep next hour: only works in playback mode -->
-      <button id="sweepBtn" class="btn" onclick="sweepNext()" disabled>
-        Sweep to Next Hour &rarr;
-      </button>
-      <button class="btn" onclick="playLive()">Sync Back to Live</button>
-    </div>
-  </div>
-
-  <div>
-    <div class="section-title">Select Hour Slice (07:00 AM &ndash; 07:00 PM IST)</div>
-    <div class="grid" id="slotsGrid"></div>
-  </div>
-</div>
-
-<script>
-  // Direct Bitgravity HLS stream link
-  const STREAM_URL = "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8";
-  
-  // Base URL pointing to today's cloud release archive
-  const REPO_OWNER = "sagarrawatssr";
-  const REPO_NAME = "air-fm-recorder";
-  const ARCHIVE_BASE = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/archive-today/`;
-
-  const audio = document.getElementById("audioElem");
-  const livePill = document.getElementById("livePill");
-  const statusText = document.getElementById("statusText");
-  const nowPlayingTitle = document.getElementById("nowPlayingTitle");
-  const sweepBtn = document.getElementById("sweepBtn");
-  const errorBox = document.getElementById("errorBox");
-
-  let hlsInstance = null;
-  let activeIndex = -1; // -1 represents Live
-
-  const hourBlocks = [
-    { label: "07 - 08 AM", file: "hour_00.mp3" },
-    { label: "08 - 09 AM", file: "hour_01.mp3" },
-    { label: "09 - 10 AM", file: "hour_02.mp3" },
-    { label: "10 - 11 AM", file: "hour_03.mp3" },
-    { label: "11 - 12 PM", file: "hour_04.mp3" },
-    { label: "12 - 01 PM", file: "hour_05.mp3" },
-    { label: "01 - 02 PM", file: "hour_06.mp3" },
-    { label: "02 - 03 PM", file: "hour_07.mp3" },
-    { label: "03 - 04 PM", file: "hour_08.mp3" },
-    { label: "04 - 05 PM", file: "hour_09.mp3" },
-    { label: "05 - 06 PM", file: "hour_10.mp3" },
-    { label: "06 - 07 PM", file: "hour_11.mp3" }
-  ];
-
-  // Render 12 Hour buttons
-  const grid = document.getElementById("slotsGrid");
-  hourBlocks.forEach((slot, i) => {
-    const el = document.createElement("div");
-    el.className = "slot-pill";
-    el.id = "hour-btn-" + i;
-    el.innerHTML = `<span class="hour">${slot.label}</span><span class="num">Hour ${i+1}</span>`;
-    el.onclick = () => playArchive(i);
-    grid.appendChild(el);
-  });
-
-  // Switch to LIVE
-  function playLive() {
-    activeIndex = -1;
-    clearActiveButtons();
-    errorBox.style.display = "none";
-
-    livePill.classList.add("active");
-    statusText.innerText = "Playing Live Broadcast";
-    nowPlayingTitle.innerText = "AIR FM Rainbow Delhi (Live)";
-    sweepBtn.disabled = true; // No sweeping in live mode
-
-    // Bust cache to hit live edge
-    const liveWithCacheBust = STREAM_URL + "?ts=" + Date.now();
-    loadLiveStream(liveWithCacheBust);
-  }
-
-  // Switch to Archive Segment
-  function playArchive(index) {
-    activeIndex = index;
-    clearActiveButtons();
-    errorBox.style.display = "none";
-
-    document.getElementById("hour-btn-" + index).classList.add("active");
-    livePill.classList.remove("active");
-    statusText.innerText = "Archive Mode";
-    nowPlayingTitle.innerText = `AIR Rainbow: ${hourBlocks[index].label}`;
-    sweepBtn.disabled = false; // Sweeping active for archives
-
-    const fileUrl = ARCHIVE_BASE + hourBlocks[index].file;
-    loadStaticAudio(fileUrl);
-  }
-
-  function sweepNext() {
-    if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
-      playArchive(activeIndex + 1);
-    } else if (activeIndex === hourBlocks.length - 1) {
-      alert("Reached the last recording slot of the day (06-07 PM).");
-    }
-  }
-
-  // Auto sweep when the hour recording finishes
-  audio.addEventListener("ended", () => {
-    if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
-      playArchive(activeIndex + 1);
-    }
-  });
-
-  // Handle missing files gracefully
-  audio.addEventListener("error", () => {
-    if (activeIndex >= 0) {
-      errorBox.style.display = "block";
-    }
-  });
-
-  function clearActiveButtons() {
-    document.querySelectorAll(".slot-pill").forEach(btn => btn.classList.remove("active"));
-  }
-
-  function loadLiveStream(url) {
-    if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
-
-    if (Hls.isSupported()) {
-      hlsInstance = new Hls({ liveSyncDurationCount: 2, maxLiveSyncPlaybackRate: 1.5 });
-      hlsInstance.loadSource(url);
-      hlsInstance.attachMedia(audio);
-      hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => audio.play().catch(() => {}));
-    } else if (audio.canPlayType("application/vnd.apple.mpegurl")) {
-      audio.src = url;
-      audio.play().catch(() => {});
-    }
-  }
-
-  function loadStaticAudio(url) {
-    if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
-    audio.src = url;
-    audio.play().catch(() => {});
-  }
-
-  // Start with Live Radio
+  // Boot into live stream
   playLive();
 </script>
 </body>
