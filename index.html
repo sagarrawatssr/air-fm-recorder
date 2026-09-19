@@ -45,7 +45,6 @@
       padding-bottom: 20px;
     }
 
-    /* Header */
     header {
       background: var(--card);
       border: 1px solid var(--border);
@@ -69,7 +68,6 @@
       margin-top: 2px;
     }
 
-    /* Player Card */
     .player-card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -87,7 +85,6 @@
       justify-content: space-between;
     }
 
-    /* YouTube Style Live Badge */
     .live-pill {
       display: inline-flex;
       align-items: center;
@@ -152,7 +149,6 @@
       outline: none;
     }
 
-    /* Mobile-Action Buttons */
     .controls-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -186,7 +182,6 @@
       transform: none;
     }
 
-    /* Date Bar (Compact Mobile Style) */
     .date-bar {
       background: var(--card);
       border: 1px solid var(--border);
@@ -231,7 +226,6 @@
       -webkit-appearance: none;
     }
 
-    /* Hourly Timeline (Horizontal Swipe Carousel for Mobile) */
     .timeline-section {
       display: flex;
       flex-direction: column;
@@ -301,7 +295,6 @@
       color: #dbeafe;
     }
 
-    /* Error Toast */
     .error-card {
       display: none;
       background: rgba(255, 59, 48, 0.1);
@@ -318,7 +311,6 @@
 <body>
 
 <div class="app">
-  <!-- Header -->
   <header>
     <div class="brand">
       <h1>AIR FM Rainbow 102.6</h1>
@@ -326,10 +318,8 @@
     </div>
   </header>
 
-  <!-- Player Box -->
   <div class="player-card">
     <div class="player-meta">
-      <!-- YouTube-style Live Pill -->
       <button id="liveBtn" class="live-pill active" onclick="playLive()">
         <span class="dot"></span> LIVE
       </button>
@@ -357,19 +347,15 @@
     </div>
   </div>
 
-  <!-- Mobile Date Stepper -->
   <div class="date-bar">
     <button class="step-btn" onclick="stepDay(-1)" title="Previous Day">&#8249;</button>
     <input type="date" id="datePicker" onchange="onDateChange()">
     <button class="step-btn" onclick="stepDay(1)" title="Next Day">&#8250;</button>
   </div>
 
-  <!-- Horizontal Swipeable Timeline (Hours 07 AM - 07 PM) -->
   <div class="timeline-section">
     <div class="section-title">Hourly Slices (Swipe to Browse)</div>
-    <div class="timeline-scroll" id="slotsTrack">
-      <!-- Populated via JS -->
-    </div>
+    <div class="timeline-scroll" id="slotsTrack"></div>
   </div>
 </div>
 
@@ -388,9 +374,17 @@
   const slotsTrack = document.getElementById("slotsTrack");
 
   let hls = null;
-  let activeIndex = -1; // -1 represents LIVE
+  let activeIndex = -1;
 
-  // Calendar bounds: 30 days rolling
+  // Enforce strictly 1.0x (normal speed) whenever audio starts or updates
+  audio.defaultPlaybackRate = 1.0;
+  audio.playbackRate = 1.0;
+  audio.addEventListener('play', () => { audio.playbackRate = 1.0; });
+  audio.addEventListener('playing', () => { audio.playbackRate = 1.0; });
+  audio.addEventListener('ratechange', () => {
+    if (audio.playbackRate !== 1.0) audio.playbackRate = 1.0;
+  });
+
   const now = new Date();
   const past30 = new Date();
   past30.setDate(now.getDate() - 30);
@@ -415,7 +409,6 @@
     { label: "06 - 07 PM", file: "hour_11.mp3" }
   ];
 
-  // Render Horizontal Cards
   hourBlocks.forEach((slot, idx) => {
     const card = document.createElement("div");
     card.className = "slot-card";
@@ -449,7 +442,6 @@
     const card = document.getElementById("card-" + index);
     if (card) {
       card.classList.add("active");
-      // Auto-scroll timeline to keep active hour in mobile view
       card.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
     }
 
@@ -484,14 +476,12 @@
     }
   }
 
-  // Auto sweep when audio ends
   audio.addEventListener("ended", () => {
     if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
       playArchive(activeIndex + 1);
     }
   });
 
-  // Handle missing audio gracefully
   audio.addEventListener("error", () => {
     if (activeIndex >= 0) {
       errorCard.style.display = "block";
@@ -508,21 +498,32 @@
       hls = null;
     }
 
+    // Always reset playback rate to standard 1.0x
+    audio.playbackRate = 1.0;
+
     if (isLive && Hls.isSupported()) {
-      hls = new Hls({ liveSyncDurationCount: 2, maxLiveSyncPlaybackRate: 1.5 });
+      hls = new Hls({
+        liveSyncDurationCount: 3,
+        // Disable speed alterations completely
+        maxLiveSyncPlaybackRate: 1.0
+      });
       hls.loadSource(url);
       hls.attachMedia(audio);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => audio.play().catch(() => {}));
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        audio.playbackRate = 1.0;
+        audio.play().catch(() => {});
+      });
     } else if (isLive && audio.canPlayType("application/vnd.apple.mpegurl")) {
       audio.src = url;
+      audio.playbackRate = 1.0;
       audio.play().catch(() => {});
     } else {
       audio.src = url;
+      audio.playbackRate = 1.0;
       audio.play().catch(() => {});
     }
   }
 
-  // Boot into live stream
   playLive();
 </script>
 </body>
