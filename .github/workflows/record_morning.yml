@@ -16,27 +16,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install FFmpeg & GitHub CLI
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg gh
 
-      - name: Record 6 Hours (07:00 AM - 01:00 PM)
+      - name: Record and Upload Hourly (Hours 0 to 5)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p output
           DATE_STR=$(date +'%Y-%m-%d')
           STREAM_URL="https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
-          
-          # Records for 21600 seconds (6h), sliced into 3600-second (1h) segments
-          ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
-            -i "$STREAM_URL" \
-            -t 21600 \
-            -c:a libmp3lame -b:a 64k -ac 1 \
-            -f segment -segment_time 3600 -segment_start_number 0 -reset_timestamps 1 \
-            "output/${DATE_STR}_hour_%02d.mp3"
+          RELEASE_TAG="archive-today"
 
-      - name: Publish Morning Audio Slices
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: archive-morning-${{ github.run_id }}
-          files: output/*.mp3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Ensure a release exists for today
+          gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "Daily Radio Archive" --notes "Automated hourly recordings"
+
+          # Loop through hours 0 to 5 (7 AM to 1 PM)
+          for i in $(seq -w 0 5); do
+            FILE_NAME="hour_${i}.mp3"
+            echo "----------------------------------------"
+            echo "Recording Hour ${i} starting now..."
+            echo "----------------------------------------"
+            
+            # Record for exactly 1 hour (3600 seconds)
+            ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
+              -i "$STREAM_URL" \
+              -t 3600 \
+              -c:a libmp3lame -b:a 64k -ac 1 \
+              "output/$FILE_NAME"
+
+            echo "Hour ${i} complete. Uploading immediately to GitHub..."
+            # Upload this specific hour right now (--clobber overwrites if re-run)
+            gh release upload "$RELEASE_TAG" "output/$FILE_NAME" --clobber
+            echo "Hour ${i} is now live and available!"
+          done
