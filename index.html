@@ -42,7 +42,7 @@
       display: flex;
       flex-direction: column;
       gap: 14px;
-      padding-bottom: 20px;
+      padding-bottom: 25px;
     }
 
     header {
@@ -66,6 +66,26 @@
       font-size: 0.75rem;
       color: var(--text-muted);
       margin-top: 2px;
+    }
+
+    /* Autoplay Prompt Overlay for Mobile Browsers that Block Instant Audio */
+    .tap-overlay {
+      display: none;
+      background: #238636;
+      color: #fff;
+      text-align: center;
+      padding: 12px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(35, 134, 54, 0.35);
+      animation: bounce 1.8s infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
     }
 
     .player-card {
@@ -314,27 +334,32 @@
   <header>
     <div class="brand">
       <h1>AIR FM Rainbow 102.6</h1>
-      <p>Delhi Live &amp; 30-Day Hourly Archive</p>
+      <p>Delhi Live &amp; 30-Day Archive</p>
     </div>
   </header>
+
+  <!-- Autoplay tap bar for mobile policy blocks -->
+  <div id="tapOverlay" class="tap-overlay" onclick="userTriggeredStart()">
+    ▶ Tap Here to Start Live Radio
+  </div>
 
   <div class="player-card">
     <div class="player-meta">
       <button id="liveBtn" class="live-pill active" onclick="playLive()">
         <span class="dot"></span> LIVE
       </button>
-      <span id="badgeStatus" style="font-size: 0.75rem; color: var(--text-muted);">Delhi Feed</span>
+      <span id="speedBadge" style="font-size: 0.75rem; color: var(--text-muted); font-weight:600;">1.0x (Normal)</span>
     </div>
 
     <div>
       <div id="trackTitle" class="track-title">AIR FM Rainbow Delhi</div>
-      <div id="trackSub" class="track-sub">Real-time broadcast</div>
+      <div id="trackSub" class="track-sub">Connecting live stream...</div>
     </div>
 
-    <audio id="audioElem" controls playsinline></audio>
+    <audio id="audioElem" controls playsinline preload="auto"></audio>
 
     <div id="errorCard" class="error-card">
-      Audio not found for this hour &amp; date. It may still be recording or expired.
+      Audio not available for this hour slot yet.
     </div>
 
     <div class="controls-grid">
@@ -354,7 +379,7 @@
   </div>
 
   <div class="timeline-section">
-    <div class="section-title">Hourly Slices (Swipe to Browse)</div>
+    <div class="section-title">Hourly Playback Slices (Swipe to Browse)</div>
     <div class="timeline-scroll" id="slotsTrack"></div>
   </div>
 </div>
@@ -372,19 +397,33 @@
   const errorCard = document.getElementById("errorCard");
   const datePicker = document.getElementById("datePicker");
   const slotsTrack = document.getElementById("slotsTrack");
+  const tapOverlay = document.getElementById("tapOverlay");
 
   let hls = null;
   let activeIndex = -1;
 
-  // Enforce strictly 1.0x (normal speed) whenever audio starts or updates
+  // STRICT 1.0X SPEED ENFORCEMENT
+  function enforceNormalSpeed() {
+    if (audio.playbackRate !== 1.0) {
+      audio.playbackRate = 1.0;
+    }
+    if (audio.defaultPlaybackRate !== 1.0) {
+      audio.defaultPlaybackRate = 1.0;
+    }
+  }
+
   audio.defaultPlaybackRate = 1.0;
   audio.playbackRate = 1.0;
-  audio.addEventListener('play', () => { audio.playbackRate = 1.0; });
-  audio.addEventListener('playing', () => { audio.playbackRate = 1.0; });
+  audio.addEventListener('play', enforceNormalSpeed);
+  audio.addEventListener('playing', enforceNormalSpeed);
+  audio.addEventListener('timeupdate', enforceNormalSpeed);
   audio.addEventListener('ratechange', () => {
-    if (audio.playbackRate !== 1.0) audio.playbackRate = 1.0;
+    if (audio.playbackRate !== 1.0) {
+      audio.playbackRate = 1.0;
+    }
   });
 
+  // Calendar bounds: 30 days
   const now = new Date();
   const past30 = new Date();
   past30.setDate(now.getDate() - 30);
@@ -459,7 +498,7 @@
     if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
       playArchive(activeIndex + 1);
     } else if (activeIndex === hourBlocks.length - 1) {
-      alert("Reached the last 6-7 PM slot for this day.");
+      alert("Reached the last recording slot for this day.");
     }
   }
 
@@ -498,32 +537,54 @@
       hls = null;
     }
 
-    // Always reset playback rate to standard 1.0x
-    audio.playbackRate = 1.0;
+    enforceNormalSpeed();
 
     if (isLive && Hls.isSupported()) {
       hls = new Hls({
         liveSyncDurationCount: 3,
-        // Disable speed alterations completely
-        maxLiveSyncPlaybackRate: 1.0
+        maxLiveSyncPlaybackRate: 1.0, // Hard stop on speed alteration
+        enableWorker: true
       });
       hls.loadSource(url);
       hls.attachMedia(audio);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        audio.playbackRate = 1.0;
-        audio.play().catch(() => {});
+        enforceNormalSpeed();
+        attemptAutoplay();
       });
     } else if (isLive && audio.canPlayType("application/vnd.apple.mpegurl")) {
       audio.src = url;
-      audio.playbackRate = 1.0;
-      audio.play().catch(() => {});
+      enforceNormalSpeed();
+      attemptAutoplay();
     } else {
       audio.src = url;
-      audio.playbackRate = 1.0;
-      audio.play().catch(() => {});
+      enforceNormalSpeed();
+      attemptAutoplay();
     }
   }
 
+  function attemptAutoplay() {
+    enforceNormalSpeed();
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
+        // Autoplay succeeded
+        tapOverlay.style.display = "none";
+        enforceNormalSpeed();
+      }).catch(() => {
+        // Autoplay policy prevented playback without tap
+        tapOverlay.style.display = "block";
+      });
+    }
+  }
+
+  function userTriggeredStart() {
+    enforceNormalSpeed();
+    audio.play().then(() => {
+      tapOverlay.style.display = "none";
+    }).catch(() => {});
+  }
+
+  // Attempt initial load on page start
   playLive();
 </script>
 </body>
