@@ -2,7 +2,8 @@ name: "1. Record FM Rainbow (07 AM - 01 PM)"
 
 on:
   schedule:
-    - cron: '30 1 * * *'  # 7:00 AM IST
+    # 7:00 AM IST is 01:30 AM UTC
+    - cron: '30 1 * * *'
   workflow_dispatch:
 
 permissions:
@@ -18,19 +19,19 @@ jobs:
       - name: Install FFmpeg & GitHub CLI
         run: sudo apt-get update && sudo apt-get install -y ffmpeg gh
 
-      - name: Record and Upload Hourly (Hours 00 to 05)
+      - name: Record & Upload Hourly (Hours 00 to 05)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p output
-          # Formats exact Indian Standard Time Date: 2026-09-19
           DATE_STR="$(TZ='Asia/Kolkata' date +'%Y-%m-%d')"
           DATE_TAG="archive-${DATE_STR}"
           STREAM_URL="https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
 
-          # Create or target the exact date release
-          gh release view "$DATE_TAG" || gh release create "$DATE_TAG" --title "Radio Archive ${DATE_STR}" --notes "Recordings for ${DATE_STR}"
+          # Ensure release exists for today's date
+          gh release view "$DATE_TAG" || gh release create "$DATE_TAG" --title "Radio Archive ${DATE_STR}" --notes "Daily recordings for ${DATE_STR}"
 
+          # Loop through morning hours 00 to 05 (7 AM - 1 PM)
           for i in $(seq -w 0 5); do
             FILE_NAME="${DATE_STR}_hour_${i}.mp3"
             echo "Recording ${FILE_NAME}..."
@@ -41,10 +42,7 @@ jobs:
               -c:a libmp3lame -b:a 64k -ac 1 \
               "output/$FILE_NAME"
 
+            echo "Uploading ${FILE_NAME}..."
             gh release upload "$DATE_TAG" "output/$FILE_NAME" --clobber
-            echo "Uploaded $FILE_NAME successfully!"
+            echo "Uploaded ${FILE_NAME} successfully!"
           done
-
-          # Rolling 30 days purge
-          EXPIRED_TAG="archive-$(TZ='Asia/Kolkata' date -d '31 days ago' +'%Y-%m-%d')"
-          gh release delete "$EXPIRED_TAG" --yes --cleanup-tag || true
