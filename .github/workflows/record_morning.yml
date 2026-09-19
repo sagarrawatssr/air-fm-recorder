@@ -19,34 +19,35 @@ jobs:
       - name: Install FFmpeg & GitHub CLI
         run: sudo apt-get update && sudo apt-get install -y ffmpeg gh
 
-      - name: Record and Upload Hourly (Hours 0 to 5)
+      - name: Record and Upload Hourly (Hours 00 to 05)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p output
-          DATE_STR=$(date +'%Y-%m-%d')
+          DATE_TAG="archive-$(TZ='Asia/Kolkata' date +'%Y-%m-%d')"
           STREAM_URL="https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
-          RELEASE_TAG="archive-today"
 
-          # Ensure a release exists for today
-          gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "Daily Radio Archive" --notes "Automated hourly recordings"
+          # Ensure today's release exists
+          gh release view "$DATE_TAG" || gh release create "$DATE_TAG" --title "Radio Archive $(TZ='Asia/Kolkata' date +'%Y-%m-%d')" --notes "Daily 1-hour slices"
 
-          # Loop through hours 0 to 5 (7 AM to 1 PM)
+          # Loop through hours 00 to 05 (7 AM to 1 PM)
           for i in $(seq -w 0 5); do
             FILE_NAME="hour_${i}.mp3"
             echo "----------------------------------------"
-            echo "Recording Hour ${i} starting now..."
+            echo "Recording Morning Slot ${i} (Hour $((10#$i + 1)) of 12)..."
             echo "----------------------------------------"
             
-            # Record for exactly 1 hour (3600 seconds)
             ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
               -i "$STREAM_URL" \
               -t 3600 \
               -c:a libmp3lame -b:a 64k -ac 1 \
               "output/$FILE_NAME"
 
-            echo "Hour ${i} complete. Uploading immediately to GitHub..."
-            # Upload this specific hour right now (--clobber overwrites if re-run)
-            gh release upload "$RELEASE_TAG" "output/$FILE_NAME" --clobber
-            echo "Hour ${i} is now live and available!"
+            echo "Slot ${i} complete. Uploading immediately to GitHub..."
+            gh release upload "$DATE_TAG" "output/$FILE_NAME" --clobber
+            echo "Morning slot ${i} uploaded successfully!"
           done
+
+          echo "Purging recordings older than 30 days..."
+          EXPIRED_TAG="archive-$(TZ='Asia/Kolkata' date -d '31 days ago' +'%Y-%m-%d')"
+          gh release delete "$EXPIRED_TAG" --yes --cleanup-tag || true
