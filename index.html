@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AIR FM Rainbow 102.6 Live & Playback</title>
+  <title>AIR FM Rainbow 102.6 Live & 30-Day Archive</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     :root {
@@ -27,7 +27,6 @@
     .player-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
     .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     
-    /* YouTube Style Live Pill */
     .live-pill {
       display: inline-flex; align-items: center; gap: 6px;
       font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
@@ -54,6 +53,16 @@
 
     #statusText { font-size: 0.8rem; color: var(--text-muted); }
     audio { width: 100%; margin: 12px 0; }
+
+    /* Date Controls */
+    .date-nav-bar {
+      display: flex; gap: 8px; align-items: center; margin: 12px 0; flex-wrap: wrap;
+      background: #11161d; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+    }
+    input[type="date"] {
+      background: #1c2430; border: 1px solid var(--border); color: #fff;
+      padding: 6px 10px; border-radius: 6px; font-size: 0.85rem; outline: none;
+    }
 
     .actions-row { display: flex; gap: 10px; flex-wrap: wrap; }
     button.btn {
@@ -86,6 +95,188 @@
 <body>
 
 <div class="container">
+  <header>
+    <h1>AIR FM Rainbow 102.6 Delhi</h1>
+    <p class="sub">Real-time radio &amp; 30-day hourly rolling archives (07:00 AM &ndash; 07:00 PM IST)</p>
+  </header>
+
+  <div class="player-card">
+    <div class="top-bar">
+      <button id="livePill" class="live-pill active" onclick="playLive()">
+        <span class="dot"></span> LIVE
+      </button>
+      <span id="statusText">Playing Live Broadcast</span>
+    </div>
+
+    <h2 id="nowPlayingTitle" style="font-size: 1.1rem; color: #f0f6fc;">AIR FM Rainbow Delhi (Live)</h2>
+    <audio id="audioElem" controls></audio>
+    
+    <div id="errorBox" class="toast-error">
+      This hour slice was not found for the selected date. It may still be recording or was purged.
+    </div>
+
+    <!-- 30-Day Date Selector with Quick Step Buttons -->
+    <div class="date-nav-bar">
+      <button class="btn" style="padding: 5px 10px;" onclick="stepDay(-1)">&larr; Prev Day</button>
+      <input type="date" id="datePicker" onchange="onDateChange()">
+      <button class="btn" style="padding: 5px 10px;" onclick="stepDay(1)">Next Day &rarr;</button>
+      <span style="font-size: 0.75rem; color:var(--text-muted); margin-left: auto;">Last 30 days stored</span>
+    </div>
+
+    <div class="actions-row">
+      <button id="sweepBtn" class="btn" onclick="sweepNext()" disabled>
+        Sweep to Next Hour &rarr;
+      </button>
+      <button class="btn" onclick="playLive()">Sync Back to Live</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Hourly Slices for Selected Date</div>
+    <div class="grid" id="slotsGrid"></div>
+  </div>
+</div>
+
+<script>
+  const STREAM_URL = "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8";
+  const REPO_OWNER = "sagarrawatssr";
+  const REPO_NAME = "air-fm-recorder";
+
+  const audio = document.getElementById("audioElem");
+  const livePill = document.getElementById("livePill");
+  const statusText = document.getElementById("statusText");
+  const nowPlayingTitle = document.getElementById("nowPlayingTitle");
+  const sweepBtn = document.getElementById("sweepBtn");
+  const errorBox = document.getElementById("errorBox");
+  const datePicker = document.getElementById("datePicker");
+
+  let hlsInstance = null;
+  let activeIndex = -1;
+
+  // Set 30-Day boundary on the calendar
+  const today = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+
+  const formatDate = (d) => d.toISOString().split('T')[0];
+  datePicker.max = formatDate(today);
+  datePicker.min = formatDate(thirtyDaysAgo);
+  datePicker.value = formatDate(today);
+
+  const hourBlocks = [
+    { label: "07 - 08 AM", file: "hour_00.mp3" },
+    { label: "08 - 09 AM", file: "hour_01.mp3" },
+    { label: "09 - 10 AM", file: "hour_02.mp3" },
+    { label: "10 - 11 AM", file: "hour_03.mp3" },
+    { label: "11 - 12 PM", file: "hour_04.mp3" },
+    { label: "12 - 01 PM", file: "hour_05.mp3" },
+    { label: "01 - 02 PM", file: "hour_06.mp3" },
+    { label: "02 - 03 PM", file: "hour_07.mp3" },
+    { label: "03 - 04 PM", file: "hour_08.mp3" },
+    { label: "04 - 05 PM", file: "hour_09.mp3" },
+    { label: "05 - 06 PM", file: "hour_10.mp3" },
+    { label: "06 - 07 PM", file: "hour_11.mp3" }
+  ];
+
+  const grid = document.getElementById("slotsGrid");
+  hourBlocks.forEach((slot, i) => {
+    const el = document.createElement("div");
+    el.className = "slot-pill";
+    el.id = "hour-btn-" + i;
+    el.innerHTML = `<span class="hour">${slot.label}</span><span class="num">Hour ${i+1}</span>`;
+    el.onclick = () => playArchive(i);
+    grid.appendChild(el);
+  });
+
+  function playLive() {
+    activeIndex = -1;
+    clearActiveButtons();
+    errorBox.style.display = "none";
+
+    livePill.classList.add("active");
+    statusText.innerText = "Playing Live Broadcast";
+    nowPlayingTitle.innerText = "AIR FM Rainbow Delhi (Live)";
+    sweepBtn.disabled = true;
+
+    loadLiveStream(STREAM_URL + "?ts=" + Date.now());
+  }
+
+  function playArchive(index) {
+    activeIndex = index;
+    clearActiveButtons();
+    errorBox.style.display = "none";
+
+    const selectedDate = datePicker.value;
+    document.getElementById("hour-btn-" + index).classList.add("active");
+    livePill.classList.remove("active");
+    statusText.innerText = `Archive: ${selectedDate}`;
+    nowPlayingTitle.innerText = `AIR Rainbow: ${hourBlocks[index].label} (${selectedDate})`;
+    sweepBtn.disabled = false;
+
+    const fileUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/archive-${selectedDate}/${hourBlocks[index].file}`;
+    loadStaticAudio(fileUrl);
+  }
+
+  function onDateChange() {
+    if (activeIndex >= 0) playArchive(activeIndex);
+  }
+
+  function stepDay(offset) {
+    const current = new Date(datePicker.value);
+    current.setDate(current.getDate() + offset);
+    if (current >= thirtyDaysAgo && current <= today) {
+      datePicker.value = formatDate(current);
+      onDateChange();
+    }
+  }
+
+  function sweepNext() {
+    if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
+      playArchive(activeIndex + 1);
+    } else if (activeIndex === hourBlocks.length - 1) {
+      alert("Reached the last recording slot of this day (06-07 PM).");
+    }
+  }
+
+  audio.addEventListener("ended", () => {
+    if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
+      playArchive(activeIndex + 1);
+    }
+  });
+
+  audio.addEventListener("error", () => {
+    if (activeIndex >= 0) {
+      errorBox.style.display = "block";
+    }
+  });
+
+  function clearActiveButtons() {
+    document.querySelectorAll(".slot-pill").forEach(btn => btn.classList.remove("active"));
+  }
+
+  function loadLiveStream(url) {
+    if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+    if (Hls.isSupported()) {
+      hlsInstance = new Hls({ liveSyncDurationCount: 2, maxLiveSyncPlaybackRate: 1.5 });
+      hlsInstance.loadSource(url);
+      hlsInstance.attachMedia(audio);
+      hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => audio.play().catch(() => {}));
+    } else if (audio.canPlayType("application/vnd.apple.mpegurl")) {
+      audio.src = url;
+      audio.play().catch(() => {});
+    }
+  }
+
+  function loadStaticAudio(url) {
+    if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+    audio.src = url;
+    audio.play().catch(() => {});
+  }
+
+  playLive();
+</script>
+</body>
+</html>
   <header>
     <h1>AIR FM Rainbow 102.6 Delhi</h1>
     <p class="sub">Continuous cloud recording &amp; 1-hour archive player (07:00 AM &ndash; 07:00 PM IST)</p>
