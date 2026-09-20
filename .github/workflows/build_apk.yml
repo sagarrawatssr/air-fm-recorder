@@ -1,10 +1,7 @@
-name: Build Clean Android APK
+name: Build Native Background Radio APK
 
 on:
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build:
@@ -13,33 +10,65 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Build Native APK via Cordova
+      - name: Build Standalone Cordova App with Background Audio Mode
         run: |
           npm install -g cordova
-          cordova create fm_app com.sagarrawatssr.airfmrainbow "AIR FM Rainbow"
-          cd fm_app
+          cordova create native_radio com.sagarrawatssr.airfmrainbow "AIR FM Rainbow"
+          cd native_radio
           
-          # Replace default cordova assets with your exact index.html
+          # 1. Copy web assets
           rm -rf www/*
           cp ../index.html www/index.html
+
+          # 2. Add native plugins for Background Execution and Audio Focus Override
+          cordova plugin add cordova-plugin-background-mode
           
-          # Add standard Android platform and compile release/debug APK
-          cordova platform add android
+          # 3. Add Android Platform
+          cordova platform add android@12.0.0
+
+          # 4. Patch MainActivity to abandon Android Audio Focus completely
+          MAIN_ACTIVITY_PATH=$(find platforms/android/app/src/main/java -name "MainActivity.java")
+          cat << 'EOF' > "$MAIN_ACTIVITY_PATH"
+          package com.sagarrawatssr.airfmrainbow;
+
+          import android.os.Bundle;
+          import android.media.AudioManager;
+          import android.content.Context;
+          import org.apache.cordova.*;
+
+          public class MainActivity extends CordovaActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  super.init();
+                  launchUrl = BuildConfig.USE_CACHE ? "file:///android_asset/www/index.html" : launchUrl;
+                  loadUrl(launchUrl);
+
+                  // Disable system audio focus loss
+                  AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+                  if (audioManager != null) {
+                      audioManager.abandonAudioFocus(null);
+                  }
+              }
+          }
+          EOF
+
+          # 5. Compile Debug APK
           cordova build android --debug
 
       - name: Upload Finished APK
         uses: actions/upload-artifact@v4
         with:
-          name: AIR-FM-Rainbow-Clean-APK
-          path: fm_app/platforms/android/app/build/outputs/apk/debug/*.apk
+          name: AIR-FM-Rainbow-Native-APK
+          path: native_radio/platforms/android/app/build/outputs/apk/debug/*.apk
