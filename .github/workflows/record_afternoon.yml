@@ -28,42 +28,43 @@ jobs:
           STREAM_URL="https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
 
           for i in $(seq -w 6 11); do
-            TMP_FILE="output/temp_rec_${i}.mp3"
+            # Afternoon cutoff: Stop if clock reaches or passes 7:00 PM IST (19:00)
             CURRENT_HOUR="$(TZ='Asia/Kolkata' date +'%-H')"
-            if [ "$CURRENT_HOUR" -ge 13 ]; then
-              echo "Clock reached 1:00 PM IST ($CURRENT_HOUR:00). Halting morning recorder."
+            if [ "$CURRENT_HOUR" -ge 19 ]; then
+              echo "Clock reached 7:00 PM IST ($CURRENT_HOUR:00). Halting afternoon recorder."
               break
             fi
 
-            # 2. Calculate seconds remaining until :54 of this hour (or next hour if already past :54)
+            # Calculate seconds remaining until :54 mark
             MIN="$(TZ='Asia/Kolkata' date +'%-M')"
             SEC="$(TZ='Asia/Kolkata' date +'%-S')"
             TARGET_MIN=54
 
             if [ "$MIN" -lt "$TARGET_MIN" ]; then
-              # Target is in the current hour
               RECORD_SECONDS=$(( (TARGET_MIN - MIN) * 60 - SEC ))
             else
-              # Already past :54; record until :54 of the NEXT hour
               RECORD_SECONDS=$(( (60 - MIN + TARGET_MIN) * 60 - SEC ))
             fi
 
-            # Guard rail: ensure we record at least 60 seconds
             if [ "$RECORD_SECONDS" -lt 60 ]; then
               RECORD_SECONDS=3600
             fi
+
+            TMP_FILE="output/temp_rec_${i}.mp3"
+            
             echo "--- Recording hour chunk $i for $RECORD_SECONDS seconds ($(( RECORD_SECONDS / 60 )) min $(( RECORD_SECONDS % 60 )) sec) ---"
-            ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
+            ffmpeg -nostdin -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
               -fflags +nobuffer+flush_packets \
               -live_start_index -1 \
               -i "$STREAM_URL" \
               -t "$RECORD_SECONDS" \
               -c:a libmp3lame -b:a 64k -ac 1 \
-              "$TMP_FILE"
+              "$TMP_FILE" || true
 
-            # Determine IST date and the dominant hour via recording midpoint (~30 mins ago)
-            REC_DATE="$(TZ='Asia/Kolkata' date -d '30 minutes ago' +'%Y-%m-%d')"
-            MID_HOUR="$(TZ='Asia/Kolkata' date -d '30 minutes ago' +'%-H')"
+            # Dynamic midpoint based on actual recorded seconds
+            MIDPOINT_AGO=$(( RECORD_SECONDS / 2 ))
+            REC_DATE="$(TZ='Asia/Kolkata' date -d "$MIDPOINT_AGO seconds ago" +'%Y-%m-%d')"
+            MID_HOUR="$(TZ='Asia/Kolkata' date -d "$MIDPOINT_AGO seconds ago" +'%-H')"
             DATE_TAG="archive-${REC_DATE}"
 
             # Map IST 24-hr clock (13 to 18) to slot suffix (06 to 11)
@@ -78,13 +79,16 @@ jobs:
             esac
 
             TARGET_FILE="${REC_DATE}_hour_${SLOT}.mp3"
-            mv "$TMP_FILE" "output/$TARGET_FILE"
-            echo "Audio midpoint fell in hour $MID_HOUR IST. Saved as: $TARGET_FILE"
+            if [ -f "$TMP_FILE" ]; then
+              mv "$TMP_FILE" "output/$TARGET_FILE"
+              echo "Audio midpoint fell in hour $MID_HOUR IST. Saved as: $TARGET_FILE"
 
-            # Ensure release container exists and upload immediately
-            gh release view "$DATE_TAG" || gh release create "$DATE_TAG" --title "Radio Archive ${REC_DATE}" --notes "Recordings for ${REC_DATE}"
-            gh release upload "$DATE_TAG" "output/$TARGET_FILE" --clobber
-            echo "Uploaded $TARGET_FILE successfully!"
+              gh release view "$DATE_TAG" || gh release create "$DATE_TAG" --title "Radio Archive ${REC_DATE}" --notes "Recordings for ${REC_DATE}"
+              gh release upload "$DATE_TAG" "output/$TARGET_FILE" --clobber
+              echo "Uploaded $TARGET_FILE successfully!"
+            else
+              echo "Warning: $TMP_FILE was not created. Skipping upload for chunk $i."
+            fi
           done
 
           echo "Purging recordings older than 30 days..."
@@ -103,5 +107,3 @@ jobs:
           else
             echo "Not Sunday; skipping keepalive."
           fi
-
-          
