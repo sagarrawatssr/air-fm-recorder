@@ -59,7 +59,7 @@ jobs:
               -fflags +nobuffer+flush_packets \
               -live_start_index -1 \
               -i "$STREAM_URL" \
-              -t 3600 \
+              -t RECORD_SECONDS \
               -c:a libmp3lame -b:a 64k -ac 1 \
               "$TMP_FILE"
 
