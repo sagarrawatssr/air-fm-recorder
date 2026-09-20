@@ -20,13 +20,14 @@ jobs:
         run: |
           yes | sdkmanager --licenses || true
 
-      - name: Scaffold Native Android Project with Foreground Audio Service
+      - name: Scaffold Native Android Project
         run: |
           mkdir -p android_app/app/src/main/java/com/sagarrawatssr/airfm
           mkdir -p android_app/app/src/main/res/values
+          mkdir -p android_app/app/src/main/res/drawable
           mkdir -p android_app/app/src/main/assets
           
-          # Copy your index.html into native assets
+          # Copy your index.html
           cp index.html android_app/app/src/main/assets/index.html
 
           # 1. Project-level build.gradle
@@ -61,7 +62,7 @@ jobs:
               compileSdk 34
               defaultConfig {
                   applicationId "com.sagarrawatssr.airfm"
-                  minSdk 24
+                  minSdk 26
                   targetSdk 34
                   versionCode 1
                   versionName "1.0"
@@ -78,7 +79,7 @@ jobs:
           }
           EOF
 
-          # 4. AndroidManifest.xml with Foreground Service & WakeLock
+          # 4. AndroidManifest.xml (With notification and foreground permissions)
           cat << 'EOF' > android_app/app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -86,10 +87,11 @@ jobs:
               <uses-permission android:name="android.permission.WAKE_LOCK" />
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
               <application
                   android:allowBackup="true"
                   android:label="AIR FM Rainbow"
-                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+                  android:theme="@android:style/Theme.NoTitleBar"
                   android:usesCleartextTraffic="true">
                   <activity
                       android:name=".MainActivity"
@@ -109,7 +111,7 @@ jobs:
           </manifest>
           EOF
 
-          # 5. Foreground Service (Keeps audio CPU thread alive in background)
+          # 5. RadioPlaybackService.java (Native Foreground Audio Player + Focus Ignore)
           cat << 'EOF' > android_app/app/src/main/java/com/sagarrawatssr/airfm/RadioPlaybackService.java
           package com.sagarrawatssr.airfm;
 
@@ -120,117 +122,52 @@ jobs:
           import android.app.Service;
           import android.content.Context;
           import android.content.Intent;
+          import android.media.AudioAttributes;
+          import android.media.AudioFocusRequest;
+          import android.media.AudioManager;
+          import android.media.MediaPlayer;
+          import android.os.Binder;
           import android.os.Build;
           import android.os.IBinder;
           import android.os.PowerManager;
 
           public class RadioPlaybackService extends Service {
-              private static final String CHANNEL_ID = "air_fm_playback_channel";
+              public static final String CHANNEL_ID = "air_fm_channel";
+              public static final String ACTION_TOGGLE = "com.sagarrawatssr.airfm.ACTION_TOGGLE";
+              public static final String ACTION_PLAY_URL = "com.sagarrawatssr.airfm.ACTION_PLAY_URL";
+
+              private MediaPlayer mediaPlayer;
               private PowerManager.WakeLock wakeLock;
+              private AudioManager audioManager;
+              private String currentTitle = "AIR FM Rainbow 102.6 MHz";
+              private boolean isPlaying = false;
+
+              private final IBinder binder = new LocalBinder();
+
+              public class LocalBinder extends Binder {
+                  public RadioPlaybackService getService() {
+                      return RadioPlaybackService.this;
+                  }
+              }
 
               @Override
               public void onCreate() {
                   super.onCreate();
                   PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
                   if (pm != null) {
-                      wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "airfm:wake");
+                      wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "airfm:lock");
                       wakeLock.acquire();
                   }
+                  setupNoFocusGain();
                   createNotificationChannel();
-                  startForeground(101, buildNotification());
+                  startForeground(101, buildNotification("Ready to Play", false));
               }
 
-              private void createNotificationChannel() {
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                      NotificationChannel channel = new NotificationChannel(
-                              CHANNEL_ID,
-                              "AIR FM Playback",
-                              NotificationManager.IMPORTANCE_LOW
-                      );
-                      NotificationManager manager = getSystemService(NotificationManager.class);
-                      if (manager != null) {
-                          manager.createNotificationChannel(channel);
-                      }
-                  }
-              }
-
-              private Notification buildNotification() {
-                  Intent notificationIntent = new Intent(this, MainActivity.class);
-                  PendingIntent pendingIntent = PendingIntent.getActivity(
-                          this, 0, notificationIntent,
-                          Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0
-                  );
-
-                  Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                          ? new Notification.Builder(this, CHANNEL_ID)
-                          : new Notification.Builder(this);
-
-                  return builder
-                          .setContentTitle("AIR FM Rainbow")
-                          .setContentText("Playing in Background")
-                          .setSmallIcon(android.R.drawable.ic_media_play)
-                          .setContentIntent(pendingIntent)
-                          .setOngoing(true)
-                          .build();
-              }
-
-              @Override
-              public int onStartCommand(Intent intent, int flags, int startId) {
-                  return START_STICKY;
-              }
-
-              @Override
-              public void onDestroy() {
-                  super.onDestroy();
-                  if (wakeLock != null && wakeLock.isHeld()) {
-                      wakeLock.release();
-                  }
-              }
-
-              @Override
-              public IBinder onBind(Intent intent) {
-                  return null;
-              }
-          }
-          EOF
-
-          # 6. MainActivity (Starts service, enables background JS/Media execution, bypasses focus)
-          cat << 'EOF' > android_app/app/src/main/java/com/sagarrawatssr/airfm/MainActivity.java
-          package com.sagarrawatssr.airfm;
-
-          import android.app.Activity;
-          import android.content.Intent;
-          import android.os.Bundle;
-          import android.os.Build;
-          import android.media.AudioAttributes;
-          import android.media.AudioFocusRequest;
-          import android.media.AudioManager;
-          import android.content.Context;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-
-          public class MainActivity extends Activity {
-              private WebView webView;
-              private AudioManager audioManager;
-
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-
-                  // 1. Start Sticky Foreground Service so OS never sleeps the process
-                  Intent serviceIntent = new Intent(this, RadioPlaybackService.class);
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                      startForegroundService(serviceIntent);
-                  } else {
-                      startService(serviceIntent);
-                  }
-
-                  // 2. Audio Focus Bypass (VLC style ignore)
+              private void setupNoFocusGain() {
                   audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
                   if (audioManager != null) {
                       AudioManager.OnAudioFocusChangeListener dummyListener = focusChange -> {
-                          // DO NOTHING -> Do not yield or pause when other audio starts
+                          // DO NOTHING -> Never yield focus, never pause for YouTube or other apps
                       };
                       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                           AudioAttributes attrs = new AudioAttributes.Builder()
@@ -244,44 +181,247 @@ jobs:
                                   .setOnAudioFocusChangeListener(dummyListener)
                                   .build();
                           audioManager.requestAudioFocus(focusRequest);
+                      }
+                  }
+              }
+
+              public void playUrl(String streamUrl, String title) {
+                  this.currentTitle = title != null ? title : "AIR FM Rainbow";
+                  try {
+                      if (mediaPlayer != null) {
+                          mediaPlayer.reset();
                       } else {
-                          audioManager.requestAudioFocus(dummyListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+                          mediaPlayer = new MediaPlayer();
+                          mediaPlayer.setAudioAttributes(
+                              new AudioAttributes.Builder()
+                                  .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                  .setUsage(AudioAttributes.USAGE_MEDIA)
+                                  .build()
+                          );
+                      }
+                      mediaPlayer.setDataSource(streamUrl);
+                      mediaPlayer.prepareAsync();
+                      mediaPlayer.setOnPreparedListener(mp -> {
+                          mp.start();
+                          isPlaying = true;
+                          updateNotification(currentTitle, true);
+                      });
+                      mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                          isPlaying = false;
+                          updateNotification("Stream unavailable", false);
+                          return true;
+                      });
+                  } catch (Exception e) {
+                      e.printStackTrace();
+                  }
+              }
+
+              public void togglePlay() {
+                  if (mediaPlayer != null) {
+                      if (mediaPlayer.isPlaying()) {
+                          mediaPlayer.pause();
+                          isPlaying = false;
+                      } else {
+                          mediaPlayer.start();
+                          isPlaying = true;
+                      }
+                      updateNotification(currentTitle, isPlaying);
+                  }
+              }
+
+              public void seekTo(int positionMs) {
+                  if (mediaPlayer != null) {
+                      mediaPlayer.seekTo(positionMs);
+                  }
+              }
+
+              private void updateNotification(String text, boolean active) {
+                  NotificationManager nm = getSystemService(NotificationManager.class);
+                  if (nm != null) {
+                      nm.notify(101, buildNotification(text, active));
+                  }
+              }
+
+              private Notification buildNotification(String text, boolean active) {
+                  Intent openIntent = new Intent(this, MainActivity.class);
+                  PendingIntent pOpen = PendingIntent.getActivity(
+                          this, 0, openIntent,
+                          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                  );
+
+                  Intent toggleIntent = new Intent(this, RadioPlaybackService.class);
+                  toggleIntent.setAction(ACTION_TOGGLE);
+                  PendingIntent pToggle = PendingIntent.getService(
+                          this, 1, toggleIntent,
+                          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                  );
+
+                  int actionIcon = active ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
+                  String actionTitle = active ? "Pause" : "Play";
+
+                  Notification.Builder builder = new Notification.Builder(this, CHANNEL_ID)
+                          .setContentTitle("AIR FM Rainbow (Delhi)")
+                          .setContentText(text)
+                          .setSmallIcon(android.R.drawable.ic_lock_idle_charging)
+                          .setContentIntent(pOpen)
+                          .setVisibility(Notification.VISIBILITY_PUBLIC)
+                          .setOngoing(active)
+                          .addAction(new Notification.Action.Builder(actionIcon, actionTitle, pToggle).build());
+
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      builder.setColorized(true);
+                  }
+
+                  return builder.build();
+              }
+
+              private void createNotificationChannel() {
+                  NotificationChannel channel = new NotificationChannel(
+                          CHANNEL_ID,
+                          "AIR FM Live Radio",
+                          NotificationManager.IMPORTANCE_LOW
+                  );
+                  channel.setDescription("Background playback and lock-screen controls");
+                  channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+                  NotificationManager nm = getSystemService(NotificationManager.class);
+                  if (nm != null) {
+                      nm.createNotificationChannel(channel);
+                  }
+              }
+
+              @Override
+              public int onStartCommand(Intent intent, int flags, int startId) {
+                  if (intent != null && ACTION_TOGGLE.equals(intent.getAction())) {
+                      togglePlay();
+                  }
+                  return START_STICKY;
+              }
+
+              @Override
+              public void onDestroy() {
+                  super.onDestroy();
+                  if (mediaPlayer != null) {
+                      mediaPlayer.release();
+                  }
+                  if (wakeLock != null && wakeLock.isHeld()) {
+                      wakeLock.release();
+                  }
+              }
+
+              @Override
+              public IBinder onBind(Intent intent) {
+                  return binder;
+              }
+          }
+          EOF
+
+          # 6. MainActivity.java (Bridges JavaScript to Native Player + Requests Notification Permission)
+          cat << 'EOF' > android_app/app/src/main/java/com/sagarrawatssr/airfm/MainActivity.java
+          package com.sagarrawatssr.airfm;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.ComponentName;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.ServiceConnection;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.IBinder;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          public class MainActivity extends Activity {
+              private WebView webView;
+              private RadioPlaybackService radioService;
+              private boolean isBound = false;
+
+              private final ServiceConnection serviceConnection = new ServiceConnection() {
+                  @Override
+                  public void onServiceConnected(ComponentName name, IBinder binder) {
+                      RadioPlaybackService.LocalBinder localBinder = (RadioPlaybackService.LocalBinder) binder;
+                      radioService = localBinder.getService();
+                      isBound = true;
+                  }
+
+                  @Override
+                  public void onServiceDisconnected(ComponentName name) {
+                      isBound = false;
+                  }
+              };
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  // Request notification permission for Android 13+
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                      if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                          requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 101);
                       }
                   }
 
-                  // 3. Configure WebView with persistent background execution
+                  // Start and bind the foreground media player service
+                  Intent intent = new Intent(this, RadioPlaybackService.class);
+                  startForegroundService(intent);
+                  bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
+
+                  // Setup Fullscreen Hardware-Accelerated WebView
                   webView = new WebView(this);
                   setContentView(webView);
 
-                  WebSettings settings = webView.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setMediaPlaybackRequiresUserGesture(false);
+                  WebSettings s = webView.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setMediaPlaybackRequiresUserGesture(false);
+
+                  // Bridge native playback calls directly to JavaScript
+                  webView.addJavascriptInterface(new Object() {
+                      @JavascriptInterface
+                      public void play(String url, String title) {
+                          runOnUiThread(() -> {
+                              if (isBound && radioService != null) {
+                                  radioService.playUrl(url, title);
+                              }
+                          });
+                      }
+
+                      @JavascriptInterface
+                      public void toggle() {
+                          runOnUiThread(() -> {
+                              if (isBound && radioService != null) {
+                                  radioService.togglePlay();
+                              }
+                          });
+                      }
+
+                      @JavascriptInterface
+                      public void seek(int posMs) {
+                          runOnUiThread(() -> {
+                              if (isBound && radioService != null) {
+                                  radioService.seekTo(posMs);
+                              }
+                          });
+                      }
+                  }, "AndroidAudio");
 
                   webView.setWebViewClient(new WebViewClient());
                   webView.loadUrl("file:///android_asset/index.html");
               }
 
               @Override
-              protected void onPause() {
-                  super.onPause();
-                  // CRITICAL: DO NOT call webView.onPause(). 
-                  // Keeping webView running lets playback continue in the background!
-              }
-
-              @Override
-              protected void onStop() {
-                  super.onStop();
-                  // Prevent the OS from freezing the JavaScript thread
-              }
-
-              @Override
               protected void onDestroy() {
                   super.onDestroy();
+                  if (isBound) {
+                      unbindService(serviceConnection);
+                      isBound = false;
+                  }
                   if (webView != null) {
                       webView.destroy();
                   }
-                  stopService(new Intent(this, RadioPlaybackService.class));
               }
           }
           EOF
