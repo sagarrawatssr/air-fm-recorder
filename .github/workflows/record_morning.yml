@@ -28,8 +28,13 @@ jobs:
           STREAM_URL="https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
 
           for i in $(seq -w 0 5); do
+          
             TMP_FILE="output/temp_rec_${i}.mp3"
-            
+            CURRENT_HOUR="$(TZ='Asia/Kolkata' date +'%-H')"
+            if [ "$CURRENT_HOUR" -ge 19 ]; then
+              echo "Clock reached 7:00 PM IST ($CURRENT_HOUR:00). Halting afternoon recorder."
+              break
+            fi
             echo "--- Recording hour chunk $i for 3600 seconds ---"
             ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
               -fflags +nobuffer+flush_packets \
@@ -69,17 +74,15 @@ jobs:
           EXPIRED_TAG="archive-$(TZ='Asia/Kolkata' date -d '31 days ago' +'%Y-%m-%d')"
           gh release delete "$EXPIRED_TAG" --yes --cleanup-tag || true
 
-      - name: Keepalive (Prevent 60-Day Inactivity)
-        # Runs once a week on Sundays
-        if: success() && startsWith(github.event_name, 'workflow_dispatch')
-        run: |
+          # Sunday check to push keepalive commit and prevent 60-day repository dormancy
           DAY_OF_WEEK="$(TZ='Asia/Kolkata' date +'%u')"
           if [ "$DAY_OF_WEEK" -eq 7 ]; then
+            echo "Sunday detected: Pushing keepalive commit..."
             git config --global user.name "github-actions[bot]"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
-            git commit --allow-empty -m "chore: keepalive ping $(date +'%Y-%m-%d')"
+            git commit --allow-empty -m "chore: weekly keepalive ping $(date +'%Y-%m-%d')"
             git push origin main
             echo "Keepalive commit pushed successfully."
           else
-            echo "Not Sunday; skipping keepalive commit."
+            echo "Not Sunday; skipping keepalive."
           fi
