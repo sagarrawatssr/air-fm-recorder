@@ -1,81 +1,191 @@
-name: Build Android APK
+name: Build Native VLC-Style Radio APK
 
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  build:
+  build_native:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Build Standalone APK via Bubblewrap
+      - name: Scaffold Native Android Project with Audio Focus Bypass
         run: |
-          npm install -g @bubblewrap/cli
+          mkdir -p android_app/app/src/main/java/com/sagarrawatssr/airfm
+          mkdir -p android_app/app/src/main/res/values
+          mkdir -p android_app/app/src/main/assets
+          
+          # Copy your index.html into native assets
+          cp index.html android_app/app/src/main/assets/index.html
 
-          # 1. Bubblewrap needs an exact configuration file in ~/.bubblewrap/config.json
-          mkdir -p ~/.bubblewrap
-          cat <<EOF > ~/.bubblewrap/config.json
-          {
-            "jdkPath": "${JAVA_HOME}",
-            "androidSdkPath": "${ANDROID_HOME}"
+          # 1. Project-level build.gradle
+          cat << 'EOF' > android_app/build.gradle
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.2.2'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
           }
           EOF
 
-          # 2. Work in isolated build folder
-          mkdir -p app_build && cd app_build
+          # 2. settings.gradle
+          echo "include ':app'" > android_app/settings.gradle
 
-          # 3. Download an icon locally so Bubblewrap does not fail asset checks
-          curl -s -L -o icon-512.png "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/icon.png" || \
-          curl -s -L -o icon-512.png "https://cdn-icons-png.flaticon.com/512/3075/3075908.png"
-
-          # 4. Generate twa-manifest.json locally (bypasses online 404 errors completely)
-          cat <<EOF > twa-manifest.json
-          {
-            "packageId": "com.sagarrawatssr.airfmrainbow",
-            "host": "sagarrawatssr.github.io",
-            "name": "AIR FM Rainbow",
-            "launcherName": "FM Rainbow",
-            "themeColor": "#0b0f19",
-            "navigationColor": "#0b0f19",
-            "backgroundColor": "#0b0f19",
-            "enableNotifications": false,
-            "startUrl": "/air-fm-recorder/index.html",
-            "iconUrl": "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/icon.png",
-            "maskableIconUrl": "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/icon.png",
-            "appVersionCode": 1,
-            "appVersionName": "1.0.0",
-            "shortcuts": [],
-            "generatorApp": "bubblewrap-cli",
-            "webManifestUrl": "https://sagarrawatssr.github.io/air-fm-recorder/manifest.json",
-            "fallbackType": "customtabs",
-            "features": {},
-            "alphaDependencies": {
-              "enabled": false
-            }
+          # 3. app/build.gradle
+          cat << 'EOF' > android_app/app/build.gradle
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.sagarrawatssr.airfm'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.sagarrawatssr.airfm"
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
           }
           EOF
 
-          # 5. Build directly from local template without interactive prompts
-          bubblewrap build --skipSigning
+          # 4. AndroidManifest.xml (Foreground & Audio permissions)
+          cat << 'EOF' > android_app/app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <uses-permission android:name="android.permission.WAKE_LOCK" />
+              <application
+                  android:allowBackup="true"
+                  android:label="AIR FM Rainbow"
+                  android:theme="@style/Theme.AppCompat.NoActionBar"
+                  android:usesCleartextTraffic="true">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
 
-      - name: Upload Finished APK
+          # 5. Native Java Code (Disables Audio Focus Gain completely like VLC)
+          cat << 'EOF' > android_app/app/src/main/java/com/sagarrawatssr/airfm/MainActivity.java
+          package com.sagarrawatssr.airfm;
+
+          import android.os.Bundle;
+          import android.os.Build;
+          import android.media.AudioAttributes;
+          import android.media.AudioFocusRequest;
+          import android.media.AudioManager;
+          import android.content.Context;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import androidx.appcompat.app.AppCompatActivity;
+
+          public class MainActivity extends AppCompatActivity {
+              private WebView webView;
+              private AudioManager audioManager;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  // Native Audio Focus Bypass: Tell Android to completely ignore focus loss
+                  audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+                  if (audioManager != null) {
+                      AudioManager.OnAudioFocusChangeListener listener = focusChange -> {
+                          // DO NOTHING ON FOCUS LOSS -> Never pause when YouTube plays!
+                      };
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                          AudioAttributes attrs = new AudioAttributes.Builder()
+                                  .setUsage(AudioAttributes.USAGE_MEDIA)
+                                  .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                  .build();
+                          AudioFocusRequest focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                                  .setAudioAttributes(attrs)
+                                  .setAcceptsDelayedFocusGain(false)
+                                  .setWillPauseWhenDucked(false)
+                                  .setOnAudioFocusChangeListener(listener)
+                                  .build();
+                          audioManager.requestAudioFocus(focusRequest);
+                      } else {
+                          audioManager.requestAudioFocus(listener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+                      }
+                  }
+
+                  // Setup Hardware Accelerated WebView
+                  webView = new WebView(this);
+                  setContentView(webView);
+
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
+
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.loadUrl("file:///android_asset/index.html");
+              }
+
+              @Override
+              protected void onDestroy() {
+                  super.onDestroy();
+                  if (webView != null) {
+                      webView.destroy();
+                  }
+              }
+          }
+          EOF
+
+      - name: Setup Gradle 8.4 Wrapper
+        run: |
+          cd android_app
+          gradle wrapper --gradle-version 8.4
+
+      - name: Build Standalone Debug APK
+        run: |
+          cd android_app
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Upload Clean APK
         uses: actions/upload-artifact@v4
         with:
-          name: AIR-FM-Rainbow-APK
-          path: app_build/*.apk
+          name: AIR-FM-Rainbow-VLC-Style-APK
+          path: android_app/app/build/outputs/apk/debug/*.apk
