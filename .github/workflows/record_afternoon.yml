@@ -52,12 +52,12 @@ jobs:
             if [ "$RECORD_SECONDS" -lt 60 ]; then
               RECORD_SECONDS=3600
             fi
-            echo "--- Recording hour chunk $i for 3600 seconds ---"
+            echo "--- Recording hour chunk $i for $RECORD_SECONDS seconds ($(( RECORD_SECONDS / 60 )) min $(( RECORD_SECONDS % 60 )) sec) ---"
             ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
               -fflags +nobuffer+flush_packets \
               -live_start_index -1 \
               -i "$STREAM_URL" \
-              -t RECORD_SECONDS \
+              -t "$RECORD_SECONDS" \
               -c:a libmp3lame -b:a 64k -ac 1 \
               "$TMP_FILE"
 
