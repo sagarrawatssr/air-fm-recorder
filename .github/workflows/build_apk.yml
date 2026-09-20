@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Clean Android APK
 
 on:
   workflow_dispatch:
@@ -13,67 +13,33 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Build Android APK via Bubblewrap
+      - name: Build Native APK via Cordova
         run: |
-          npm install -g @bubblewrap/cli
+          npm install -g cordova
+          cordova create fm_app com.sagarrawatssr.airfmrainbow "AIR FM Rainbow"
+          cd fm_app
+          
+          # Replace default cordova assets with your exact index.html
+          rm -rf www/*
+          cp ../index.html www/index.html
+          
+          # Add standard Android platform and compile release/debug APK
+          cordova platform add android
+          cordova build android --debug
 
-          # Configure Bubblewrap paths
-          mkdir -p ~/.bubblewrap
-          cat <<EOF > ~/.bubblewrap/config.json
-          {
-            "jdkPath": "${JAVA_HOME}",
-            "androidSdkPath": "${ANDROID_HOME}"
-          }
-          EOF
-
-          mkdir -p app_build && cd app_build
-
-          # Create a local twa-manifest.json directly so no remote 404 can happen
-          cat <<EOF > twa-manifest.json
-          {
-            "packageId": "com.sagarrawatssr.airfmrainbow",
-            "host": "sagarrawatssr.github.io",
-            "name": "AIR FM Rainbow",
-            "launcherName": "FM Rainbow",
-            "themeColor": "#0b0f19",
-            "navigationColor": "#0b0f19",
-            "backgroundColor": "#0b0f19",
-            "startUrl": "/air-fm-recorder/index.html",
-            "iconUrl": "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/icon.png",
-            "maskableIconUrl": "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/icon.png",
-            "appVersionCode": 1,
-            "appVersionName": "1.0.0",
-            "shortcuts": [],
-            "generatorApp": "bubblewrap-cli",
-            "webManifestUrl": "https://sagarrawatssr.github.io/air-fm-recorder/manifest.json",
-            "fallbackType": "customtabs",
-            "features": {},
-            "alphaDependencies": {
-              "enabled": false
-            },
-            "enableNotifications": false
-          }
-          EOF
-
-          # Download a default app icon if one doesn't exist
-          curl -s -L -o icon.png "https://cdn-icons-png.flaticon.com/512/3075/3075908.png"
-
-          # Generate the Android project from the local file
-          npx @bubblewrap/cli build --skipSigning
-
-      - name: Upload APK Artifact
+      - name: Upload Finished APK
         uses: actions/upload-artifact@v4
         with:
-          name: AIR-FM-Rainbow-APK
-          path: app_build/*.apk
+          name: AIR-FM-Rainbow-Clean-APK
+          path: fm_app/platforms/android/app/build/outputs/apk/debug/*.apk
