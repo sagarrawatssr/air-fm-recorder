@@ -54,7 +54,7 @@ jobs:
               RECORD_SECONDS=3600
             fi
             
-            echo "--- Recording hour chunk $i for 3600 seconds ---"
+            echo "--- Recording hour chunk $i for $RECORD_SECONDS seconds ($(( RECORD_SECONDS / 60 )) min $(( RECORD_SECONDS % 60 )) sec) ---"
             ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
               -fflags +nobuffer+flush_packets \
               -live_start_index -1 \
