@@ -3,219 +3,189 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AIR FM Rainbow Web Player</title>
+  <title>AIR FM Rainbow Player</title>
   
-  <!-- Web App / PWA Meta Tags -->
   <meta name="theme-color" content="#121212">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.json">
 
-  <!-- HLS.js for Live Stream Playback -->
+  <!-- HLS.js for Live Stream -->
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
   <style>
     :root {
       --bg: #121212;
-      --card-bg: #1e1e1e;
-      --accent: #ff4757;
-      --text: #f1f2f6;
-      --subtext: #a4b0be;
+      --card: #1e1e1e;
+      --accent: #e50914;
+      --text: #ffffff;
+      --sub: #9e9e9e;
+      --btn-bg: #2d2d2d;
     }
 
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     body {
       background: var(--bg);
       color: var(--text);
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-      padding: 20px;
+      justify-content: center;
+      padding: 24px 16px;
     }
 
     .container {
       width: 100%;
-      max-width: 480px;
+      max-width: 440px;
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 16px;
     }
 
     .card {
-      background: var(--card-bg);
+      background: var(--card);
+      border-radius: 12px;
       padding: 20px;
-      border-radius: 16px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
     }
 
     h1 {
-      font-size: 1.3rem;
-      margin-bottom: 4px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      font-size: 1.25rem;
+      font-weight: 600;
     }
 
-    .badge-live {
+    .live-dot {
       display: inline-block;
-      width: 10px;
-      height: 10px;
-      background: var(--accent);
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
-      box-shadow: 0 0 8px var(--accent);
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent);
     }
 
-    p.sub {
-      color: var(--subtext);
-      font-size: 0.85rem;
-      margin-bottom: 15px;
+    .status-text {
+      font-size: 0.82rem;
+      color: var(--sub);
+      margin-bottom: 16px;
     }
 
-    .controls {
+    .btn-row {
       display: flex;
       gap: 10px;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
 
     button {
       flex: 1;
-      padding: 12px 16px;
+      padding: 12px;
       border: none;
       border-radius: 8px;
       font-size: 0.95rem;
       font-weight: 600;
       cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
+      color: #fff;
+      background: var(--btn-bg);
+      transition: opacity 0.2s;
     }
 
     button:active {
-      transform: scale(0.98);
+      opacity: 0.8;
     }
 
     .btn-primary {
       background: var(--accent);
-      color: white;
-    }
-
-    .btn-secondary {
-      background: #2f3542;
-      color: white;
-    }
-
-    .btn-mode {
-      background: #2ed573;
-      color: white;
     }
 
     audio {
       width: 100%;
-      margin-top: 10px;
-      display: block;
+      margin-top: 4px;
     }
 
-    .archive-section {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .date-picker {
-      padding: 10px;
-      background: #2f3542;
-      color: white;
-      border: none;
-      border-radius: 8px;
+    .date-input {
       width: 100%;
-      font-size: 0.95rem;
+      padding: 10px 12px;
+      background: var(--btn-bg);
+      color: #fff;
+      border: 1px solid #3d3d3d;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      margin: 12px 0;
       outline: none;
     }
 
-    .slot-list {
+    .grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: 1fr 1fr;
       gap: 8px;
-      margin-top: 5px;
     }
 
     .slot-btn {
-      background: #2f3542;
-      color: #ced6e0;
+      background: var(--btn-bg);
+      color: #d1d5db;
       font-size: 0.8rem;
-      padding: 10px 8px;
+      padding: 10px;
       border-radius: 6px;
       border: none;
-      text-align: center;
       cursor: pointer;
     }
 
     .slot-btn.active {
       background: var(--accent);
-      color: white;
+      color: #fff;
       font-weight: bold;
-    }
-
-    .status-pill {
-      font-size: 0.75rem;
-      padding: 4px 8px;
-      border-radius: 12px;
-      background: #2f3542;
-      color: var(--subtext);
-      display: inline-block;
-      margin-top: 5px;
     }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <!-- Live & Archive Player Card -->
+    <!-- Player Card -->
     <div class="card">
-      <h1><span class="badge-live"></span> AIR FM Rainbow</h1>
-      <p class="sub" id="track-status">Live Stream Mode</p>
+      <div class="title-row">
+        <h1>AIR FM Rainbow</h1>
+        <span class="live-dot" id="live-indicator"></span>
+      </div>
+      <p class="status-text" id="status">Live Broadcast</p>
 
-      <div class="controls">
+      <div class="btn-row">
         <button id="btn-toggle" class="btn-primary" onclick="togglePlay()">Play</button>
-        <button class="btn-secondary" onclick="forceLiveEdge()">Go to Live Edge</button>
+        <button onclick="switchToLiveEdge()">Go to Live Edge</button>
       </div>
 
       <audio id="audio-player" controls preload="none"></audio>
-      <div id="playback-notice" class="status-pill">Parallel Playback: Active (WebAudio Routed)</div>
     </div>
 
-    <!-- Daily Archive Slots -->
-    <div class="card archive-section">
-      <h2 style="font-size: 1.1rem;">Recorded Archives</h2>
-      <input type="date" id="archive-date" class="date-picker" onchange="updateSlotUrls()">
-      
-      <div class="slot-list" id="slot-container">
-        <!-- Slots 00 to 11 generated dynamically -->
-      </div>
+    <!-- Archive Card -->
+    <div class="card">
+      <h2 style="font-size: 1rem; font-weight: 600;">Recorded Archives</h2>
+      <input type="date" id="archive-date" class="date-input" onchange="renderSlots()">
+      <div class="grid" id="slot-container"></div>
     </div>
   </div>
 
   <script>
-    // Configuration
-    const LIVE_STREAM_URL = "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8";
-    const GITHUB_REPO_URL = "https://github.com/sagarrawatssr/air-fm-recorder/releases/download"; // Update if your repo differs
+    const STREAM_URL = "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8";
+    const GITHUB_BASE = "https://github.com/sagarrawatssr/air-fm-recorder/releases/download";
 
     const audio = document.getElementById("audio-player");
-    const trackStatus = document.getElementById("track-status");
+    const statusText = document.getElementById("status");
     const btnToggle = document.getElementById("btn-toggle");
-    
-    let hls = null;
-    let isLiveMode = true;
-    let userIntentPlaying = false;
-    let audioContext = null;
+    const liveDot = document.getElementById("live-indicator");
 
-    // Slot labels (IST 24-hr layout)
+    let hls = null;
+    let isLive = true;
+    let userPlaying = false;
+
     const SLOTS = [
       { id: "00", label: "07 AM - 08 AM" },
       { id: "01", label: "08 AM - 09 AM" },
@@ -231,66 +201,18 @@
       { id: "11", label: "06 PM - 07 PM" }
     ];
 
-    // Feature 1: Route through WebAudio API to mix audio with other apps
-    function initWebAudioBypass() {
-      if (audioContext) return;
-      try {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        audioContext = new AudioContextClass();
-        const source = audioContext.createMediaElementSource(audio);
-        source.connect(audioContext.destination);
-      } catch (e) {
-        console.warn("WebAudio bypass init error or already wired:", e);
-      }
-    }
-
-    // Feature 2: Auto-resume playback if interrupted or paused by third-party audio/calls
-    audio.addEventListener("pause", () => {
-      btnToggle.textContent = "Play";
-      if (userIntentPlaying) {
-        // Interrupted by an external app or audio ducking; poll and auto-resume
-        setTimeout(() => {
-          if (userIntentPlaying && audio.paused) {
-            if (audioContext && audioContext.state === "suspended") {
-              audioContext.resume();
-            }
-            if (isLiveMode) {
-              forceLiveEdge(); // Ensure live audio is fresh upon resuming
-            } else {
-              audio.play().catch(() => {});
-            }
-          }
-        }, 800);
-      }
-    });
-
-    audio.addEventListener("play", () => {
-      btnToggle.textContent = "Pause";
-      userIntentPlaying = true;
-      if (audioContext && audioContext.state === "suspended") {
-        audioContext.resume();
-      }
-    });
-
-    // Feature 3: Strictly enforce live edge (No stale buffer playback)
-    function setupHlsStream() {
+    // Initialize HLS directly to the native audio element (No Web Audio API = Crystal Clear Audio)
+    function setupHls() {
       if (Hls.isSupported()) {
         if (hls) hls.destroy();
         hls = new Hls({
-          liveSyncDurationCount: 1,      // Target newest HLS chunk
-          liveMaxLatencyDurationCount: 3, // Prevent falling behind into history
-          maxBufferLength: 6,
+          liveSyncDurationCount: 1,
+          liveMaxLatencyDurationCount: 2,
           enableWorker: true
         });
 
-        hls.loadSource(LIVE_STREAM_URL);
+        hls.loadSource(STREAM_URL);
         hls.attachMedia(audio);
-
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          if (userIntentPlaying) {
-            forceLiveEdge();
-          }
-        });
 
         hls.on(Hls.Events.ERROR, (event, data) => {
           if (data.fatal) {
@@ -302,63 +224,81 @@
                 hls.recoverMediaError();
                 break;
               default:
-                setupHlsStream();
+                setupHls();
                 break;
             }
           }
         });
       } else if (audio.canPlayType("application/vnd.apple.mpegurl")) {
-        // Native Safari/iOS HLS fallback
-        audio.src = LIVE_STREAM_URL;
+        audio.src = STREAM_URL;
       }
     }
 
-    function forceLiveEdge() {
-      initWebAudioBypass();
-      isLiveMode = true;
-      userIntentPlaying = true;
-      trackStatus.textContent = "Connecting to Live Edge...";
+    // Auto-Resume on Interruption
+    audio.addEventListener("pause", () => {
+      btnToggle.textContent = "Play";
+      if (userPlaying) {
+        // Interrupted by an external notification/sound; auto-resume
+        setTimeout(() => {
+          if (userPlaying && audio.paused) {
+            if (isLive) {
+              switchToLiveEdge();
+            } else {
+              audio.play().catch(() => {});
+            }
+          }
+        }, 1000);
+      }
+    });
 
-      // Clear active archive button styles
+    audio.addEventListener("play", () => {
+      btnToggle.textContent = "Pause";
+      userPlaying = true;
+    });
+
+    // Enforce Live Edge
+    function switchToLiveEdge() {
+      isLive = true;
+      userPlaying = true;
+      statusText.textContent = "Connecting to Live Edge...";
+      liveDot.style.background = "var(--accent)";
+
       document.querySelectorAll(".slot-btn").forEach(b => b.classList.remove("active"));
 
       if (hls) {
-        // Detach and reload directly to latest playlist manifest
         hls.stopLoad();
-        hls.loadSource(LIVE_STREAM_URL + "?cache_bust=" + Date.now());
-        hls.startLoad(-1); // Start from latest live chunk
+        hls.loadSource(STREAM_URL + "?ts=" + Date.now());
+        hls.startLoad(-1);
         audio.play().then(() => {
-          trackStatus.textContent = "Live Stream Edge";
-        }).catch(console.error);
+          statusText.textContent = "Live Broadcast";
+        }).catch(() => {});
       } else {
-        audio.src = LIVE_STREAM_URL + "?cache_bust=" + Date.now();
+        audio.src = STREAM_URL + "?ts=" + Date.now();
         audio.currentTime = 0;
         audio.play().then(() => {
-          trackStatus.textContent = "Live Stream Edge";
-        }).catch(console.error);
+          statusText.textContent = "Live Broadcast";
+        }).catch(() => {});
       }
     }
 
     function togglePlay() {
-      initWebAudioBypass();
       if (audio.paused) {
-        userIntentPlaying = true;
-        if (isLiveMode) {
-          forceLiveEdge();
+        userPlaying = true;
+        if (isLive) {
+          switchToLiveEdge();
         } else {
           audio.play();
         }
       } else {
-        userIntentPlaying = false;
+        userPlaying = false;
         audio.pause();
       }
     }
 
-    // Archive Slot Generation & Playback
-    function loadSlot(slotId, buttonElement) {
-      initWebAudioBypass();
-      isLiveMode = false;
-      userIntentPlaying = true;
+    // Slot Playback
+    function playSlot(slotId, btn) {
+      isLive = false;
+      userPlaying = true;
 
       if (hls) {
         hls.destroy();
@@ -366,39 +306,37 @@
       }
 
       document.querySelectorAll(".slot-btn").forEach(b => b.classList.remove("active"));
-      buttonElement.classList.add("active");
+      btn.classList.add("active");
+      liveDot.style.background = "#555";
 
-      const selectedDate = document.getElementById("archive-date").value;
-      const fileUrl = `${GITHUB_REPO_URL}/archive-${selectedDate}/${selectedDate}_hour_${slotId}.mp3`;
+      const date = document.getElementById("archive-date").value;
+      const fileUrl = `${GITHUB_BASE}/archive-${date}/${date}_hour_${slotId}.mp3`;
 
-      trackStatus.textContent = `Archive: ${selectedDate} (Slot ${slotId})`;
+      statusText.textContent = `Archive: ${date} (${slotId})`;
       audio.src = fileUrl;
       audio.load();
-      audio.play().catch(err => {
+      audio.play().catch(() => {
         alert("Audio for this slot was not found or is still recording.");
-        trackStatus.textContent = "Slot audio unavailable";
+        statusText.textContent = "Slot unavailable";
       });
     }
 
-    function updateSlotUrls() {
+    function renderSlots() {
       const container = document.getElementById("slot-container");
       container.innerHTML = "";
       SLOTS.forEach(slot => {
         const btn = document.createElement("button");
         btn.className = "slot-btn";
         btn.textContent = slot.label;
-        btn.onclick = () => loadSlot(slot.id, btn);
+        btn.onclick = () => playSlot(slot.id, btn);
         container.appendChild(btn);
       });
     }
 
-    // Set default archive date to today in IST
-    const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    document.getElementById("archive-date").value = todayIST;
-    updateSlotUrls();
-
-    // Start in live mode setup
-    setupHlsStream();
+    // Default to today IST
+    document.getElementById("archive-date").value = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    renderSlots();
+    setupHls();
   </script>
 </body>
 </html>
