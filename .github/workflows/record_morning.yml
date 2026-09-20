@@ -69,7 +69,7 @@ jobs:
           EXPIRED_TAG="archive-$(TZ='Asia/Kolkata' date -d '31 days ago' +'%Y-%m-%d')"
           gh release delete "$EXPIRED_TAG" --yes --cleanup-tag || true
 
-          - name: Keepalive (Prevent 60-Day Inactivity)
+      - name: Keepalive (Prevent 60-Day Inactivity)
         # Runs once a week on Sundays
         if: success() && startsWith(github.event_name, 'workflow_dispatch')
         run: |
