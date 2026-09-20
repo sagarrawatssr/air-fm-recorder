@@ -1,7 +1,10 @@
-name: Build Native Background Radio APK
+name: Build Android APK
 
 on:
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -21,54 +24,58 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Build Standalone Cordova App with Background Audio Mode
+      - name: Build Standalone APK via Bubblewrap
         run: |
-          npm install -g cordova
-          cordova create native_radio com.sagarrawatssr.airfmrainbow "AIR FM Rainbow"
-          cd native_radio
-          
-          # 1. Copy web assets
-          rm -rf www/*
-          cp ../index.html www/index.html
+          npm install -g @bubblewrap/cli
 
-          # 2. Add native plugins for Background Execution and Audio Focus Override
-          cordova plugin add cordova-plugin-background-mode
-          
-          # 3. Add Android Platform
-          cordova platform add android@12.0.0
-
-          # 4. Patch MainActivity to abandon Android Audio Focus completely
-          MAIN_ACTIVITY_PATH=$(find platforms/android/app/src/main/java -name "MainActivity.java")
-          cat << 'EOF' > "$MAIN_ACTIVITY_PATH"
-          package com.sagarrawatssr.airfmrainbow;
-
-          import android.os.Bundle;
-          import android.media.AudioManager;
-          import android.content.Context;
-          import org.apache.cordova.*;
-
-          public class MainActivity extends CordovaActivity {
-              @Override
-              public void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  super.init();
-                  launchUrl = BuildConfig.USE_CACHE ? "file:///android_asset/www/index.html" : launchUrl;
-                  loadUrl(launchUrl);
-
-                  // Disable system audio focus loss
-                  AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-                  if (audioManager != null) {
-                      audioManager.abandonAudioFocus(null);
-                  }
-              }
+          # 1. Bubblewrap needs an exact configuration file in ~/.bubblewrap/config.json
+          mkdir -p ~/.bubblewrap
+          cat <<EOF > ~/.bubblewrap/config.json
+          {
+            "jdkPath": "${JAVA_HOME}",
+            "androidSdkPath": "${ANDROID_HOME}"
           }
           EOF
 
-          # 5. Compile Debug APK
-          cordova build android --debug
+          # 2. Work in isolated build folder
+          mkdir -p app_build && cd app_build
+
+          # 3. Download an icon locally so Bubblewrap does not fail asset checks
+          curl -s -L -o icon-512.png "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/icon.png" || \
+          curl -s -L -o icon-512.png "https://cdn-icons-png.flaticon.com/512/3075/3075908.png"
+
+          # 4. Generate twa-manifest.json locally (bypasses online 404 errors completely)
+          cat <<EOF > twa-manifest.json
+          {
+            "packageId": "com.sagarrawatssr.airfmrainbow",
+            "host": "sagarrawatssr.github.io",
+            "name": "AIR FM Rainbow",
+            "launcherName": "FM Rainbow",
+            "themeColor": "#0b0f19",
+            "navigationColor": "#0b0f19",
+            "backgroundColor": "#0b0f19",
+            "enableNotifications": false,
+            "startUrl": "/air-fm-recorder/index.html",
+            "iconUrl": "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/icon.png",
+            "maskableIconUrl": "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/icon.png",
+            "appVersionCode": 1,
+            "appVersionName": "1.0.0",
+            "shortcuts": [],
+            "generatorApp": "bubblewrap-cli",
+            "webManifestUrl": "https://sagarrawatssr.github.io/air-fm-recorder/manifest.json",
+            "fallbackType": "customtabs",
+            "features": {},
+            "alphaDependencies": {
+              "enabled": false
+            }
+          }
+          EOF
+
+          # 5. Build directly from local template without interactive prompts
+          bubblewrap build --skipSigning
 
       - name: Upload Finished APK
         uses: actions/upload-artifact@v4
         with:
-          name: AIR-FM-Rainbow-Native-APK
-          path: native_radio/platforms/android/app/build/outputs/apk/debug/*.apk
+          name: AIR-FM-Rainbow-APK
+          path: app_build/*.apk
