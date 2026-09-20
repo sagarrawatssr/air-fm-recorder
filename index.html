@@ -4,13 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AIR FM Rainbow Delhi (102.6 MHz)</title>
-  
-  <meta name="theme-color" content="#0b0f19">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-  <!-- HLS.js for Live Streaming -->
+  <!-- HLS.js for Live Stream -->
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
   <style>
@@ -51,7 +46,6 @@
       gap: 12px;
     }
 
-    /* Top Bar */
     .header-bar {
       display: flex;
       justify-content: space-between;
@@ -80,7 +74,7 @@
       border: 1px solid #2563eb40;
     }
 
-    /* Top Master Button */
+    /* Master Top Button */
     .master-btn {
       width: 100%;
       padding: 13px;
@@ -137,11 +131,22 @@
       box-shadow: 0 0 6px var(--live-red);
     }
 
-    .mode-text {
+    .btn-go-live {
+      background: #1e293b;
+      border: 1px solid var(--border-color);
+      color: #f8fafc;
+      padding: 5px 12px;
+      border-radius: 20px;
       font-size: 0.75rem;
       font-weight: 700;
-      color: var(--text-muted);
-      letter-spacing: 0.05em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-go-live:active {
+      background: var(--accent-blue);
     }
 
     .track-meta h2 {
@@ -155,62 +160,96 @@
       color: var(--text-muted);
     }
 
-    /* Waveform Box */
-    .waveform-wrapper {
+    /* YouTube Touch & Gesture Screen / Waveform Display */
+    .gesture-screen {
       width: 100%;
-      height: 42px;
+      height: 52px;
+      background: #0f172a;
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 4px;
-      background: #0f172a;
-      border-radius: 10px;
-      padding: 0 12px;
-      overflow: hidden;
-      cursor: pointer;
+      gap: 5px;
       position: relative;
+      cursor: pointer;
+      overflow: hidden;
+      border: 1px solid #1e293b;
     }
 
     .wave-bar {
       flex: 1;
-      max-width: 8px;
-      height: 6px;
+      max-width: 6px;
+      height: 8px;
       background: #38bdf8;
       border-radius: 3px;
       transition: height 0.12s ease;
+      pointer-events: none;
     }
 
-    .waveform-wrapper.playing .wave-bar {
+    .gesture-screen.playing .wave-bar {
       animation: pulse 1s infinite alternate ease-in-out;
     }
 
     @keyframes pulse {
-      0% { height: 6px; }
-      100% { height: 30px; }
+      0% { height: 8px; }
+      100% { height: 36px; }
     }
 
-    /* Progress Bar */
+    /* Gesture Overlay Pill */
+    .gesture-pill {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(37, 99, 235, 0.95);
+      color: #ffffff;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease-out;
+      z-index: 10;
+    }
+
+    /* YouTube Scrubber Playbar */
     .timeline-scrubber {
       width: 100%;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 8px;
     }
 
     .progress-bar-bg {
       width: 100%;
-      height: 6px;
+      height: 8px;
       background: #1e293b;
-      border-radius: 3px;
+      border-radius: 4px;
       cursor: pointer;
       position: relative;
+      display: flex;
+      align-items: center;
     }
 
     .progress-bar-fill {
       height: 100%;
       width: 0%;
       background: var(--accent-blue);
-      border-radius: 3px;
+      border-radius: 4px;
+      pointer-events: none;
+      position: relative;
+    }
+
+    .progress-scrubber-handle {
+      width: 14px;
+      height: 14px;
+      background: #ffffff;
+      border-radius: 50%;
+      position: absolute;
+      right: -7px;
+      top: -3px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.6);
       pointer-events: none;
     }
 
@@ -222,7 +261,7 @@
       font-variant-numeric: tabular-nums;
     }
 
-    /* Controls */
+    /* Control Buttons */
     .control-row {
       display: flex;
       justify-content: space-around;
@@ -275,7 +314,7 @@
       fill: currentColor;
     }
 
-    /* Volume & Speed */
+    /* Rate & Volume */
     .sub-controls {
       display: flex;
       align-items: center;
@@ -292,14 +331,14 @@
       background: #1e293b;
       border: none;
       color: var(--text-main);
-      padding: 4px 10px;
+      padding: 5px 12px;
       border-radius: 8px;
       font-size: 0.8rem;
       font-weight: 600;
       cursor: pointer;
     }
 
-    /* Error Alert Box */
+    /* Error Notice Box */
     .alert-box {
       background: rgba(239, 68, 68, 0.12);
       border: 1px solid rgba(239, 68, 68, 0.3);
@@ -316,19 +355,7 @@
       color: #fca5a5;
     }
 
-    .btn-alert-live {
-      background: var(--live-red);
-      color: #fff;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 8px;
-      font-size: 0.75rem;
-      font-weight: 700;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    /* Date Pills */
+    /* Date Navigation */
     .date-pill-group {
       display: flex;
       gap: 8px;
@@ -376,7 +403,7 @@
       font-weight: 600;
     }
 
-    /* Slots */
+    /* Slot Cards */
     .timeline-title {
       font-size: 0.75rem;
       font-weight: 700;
@@ -426,22 +453,6 @@
       font-size: 0.68rem;
       color: var(--text-muted);
     }
-
-    .gesture-hint {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(37, 99, 235, 0.9);
-      color: white;
-      font-size: 0.85rem;
-      font-weight: 700;
-      padding: 4px 14px;
-      border-radius: 20px;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.15s;
-    }
   </style>
 </head>
 <body>
@@ -455,16 +466,20 @@
       <div class="freq-badge">102.6 MHz</div>
     </div>
 
+    <!-- Master Button -->
     <button class="master-btn" id="master-btn" onclick="togglePlay()">
       <span id="master-btn-icon">▶</span> <span id="master-btn-text">Tap to Start AIR FM Rainbow Radio</span>
     </button>
 
+    <!-- Player Console -->
     <div class="player-card">
       <div class="mode-indicators">
         <div class="live-tag" id="live-badge">
           <span class="live-dot"></span> LIVE
         </div>
-        <div class="mode-text" id="mode-text">LIVE BROADCAST</div>
+        <button class="btn-go-live" onclick="switchToLiveEdge()">
+          <span style="color: var(--live-red); font-size: 1rem;">●</span> Switch to Live
+        </button>
       </div>
 
       <div class="track-meta">
@@ -472,9 +487,9 @@
         <p id="player-sub">All India Radio • 102.6 MHz FM</p>
       </div>
 
-      <!-- Waveform Container with Interactive Touch Seek -->
-      <div class="waveform-wrapper" id="waveform-box">
-        <div class="gesture-hint" id="gesture-indicator">10s</div>
+      <!-- Gesture Screen: Tap Left/Right (10s), Double Tap (20s), Touch & Hold (Continuous 2x/Fast Seek) -->
+      <div class="gesture-screen" id="gesture-screen">
+        <div class="gesture-pill" id="gesture-pill">10s</div>
         <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
         <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
         <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
@@ -485,10 +500,12 @@
         <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
       </div>
 
-      <!-- Scrubber -->
+      <!-- YouTube Style Interactive Scrubber Bar -->
       <div class="timeline-scrubber">
-        <div class="progress-bar-bg" id="progress-container" onclick="seekByBar(event)">
-          <div class="progress-bar-fill" id="progress-fill"></div>
+        <div class="progress-bar-bg" id="progress-container">
+          <div class="progress-bar-fill" id="progress-fill">
+            <div class="progress-scrubber-handle"></div>
+          </div>
         </div>
         <div class="time-labels">
           <span id="time-current">00:00</span>
@@ -496,7 +513,7 @@
         </div>
       </div>
 
-      <!-- Center Controls -->
+      <!-- Control Buttons -->
       <div class="control-row">
         <button class="seek-btn" id="btn-seek-back">
           <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.2 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
@@ -514,7 +531,7 @@
         </button>
       </div>
 
-      <!-- Volume / Speed -->
+      <!-- Volume & Speed Buttons -->
       <div class="sub-controls">
         <span style="font-size: 0.8rem;">🔊</span>
         <input type="range" class="vol-slider" min="0" max="1" step="0.05" value="1" oninput="audio.volume = this.value">
@@ -525,7 +542,6 @@
     <!-- Alert Box -->
     <div class="alert-box" id="error-box">
       <p id="error-msg">Recording not found. It may still be recording or expired.</p>
-      <button class="btn-alert-live" onclick="switchToLiveEdge()">Go Live</button>
     </div>
 
     <!-- Date Selectors -->
@@ -541,7 +557,7 @@
       <button class="nav-arrow" onclick="adjustDate(1)">❯</button>
     </div>
 
-    <!-- Slots -->
+    <!-- Slot Carousel -->
     <div class="timeline-title">
       <span>HOURLY TIMELINE (07 AM – 07 PM IST)</span>
       <span>Sweep Next →</span>
@@ -562,14 +578,14 @@
     const playerTitle = document.getElementById("player-title");
     const playerSub = document.getElementById("player-sub");
     const liveBadge = document.getElementById("live-badge");
-    const modeText = document.getElementById("mode-text");
     const errorBox = document.getElementById("error-box");
     const errorMsg = document.getElementById("error-msg");
-    const waveform = document.getElementById("waveform-box");
+    const gestureScreen = document.getElementById("gesture-screen");
+    const gesturePill = document.getElementById("gesture-pill");
+    const progressContainer = document.getElementById("progress-container");
     const progressFill = document.getElementById("progress-fill");
     const timeCurrent = document.getElementById("time-current");
     const timeTotal = document.getElementById("time-total");
-    const gestureIndicator = document.getElementById("gesture-indicator");
 
     let hls = null;
     let isLive = true;
@@ -595,7 +611,7 @@
         if (!audio.src && isLive) {
           switchToLiveEdge();
         } else {
-          audio.play().catch(e => console.log("Playback start prevented:", e));
+          audio.play().catch(e => console.log(e));
         }
       } else {
         audio.pause();
@@ -605,7 +621,6 @@
     function switchToLiveEdge() {
       isLive = true;
       liveBadge.style.display = "inline-flex";
-      modeText.textContent = "LIVE BROADCAST";
       playerTitle.textContent = "FM Rainbow: Live Stream";
       playerSub.textContent = "All India Radio • 102.6 MHz FM";
       document.querySelectorAll(".slot-card").forEach(c => c.classList.remove("active"));
@@ -641,7 +656,6 @@
       card.classList.add("active");
 
       liveBadge.style.display = "none";
-      modeText.textContent = "ARCHIVE MODE";
 
       const dateStr = getFormattedDate(currentDate, "YYYY-MM-DD");
       const matchedSlot = SLOTS.find(s => s.id === slotId);
@@ -662,7 +676,6 @@
       });
     }
 
-    // UI Updates
     audio.addEventListener("play", () => syncUi(true));
     audio.addEventListener("pause", () => syncUi(false));
 
@@ -671,15 +684,16 @@
         playIcon.style.display = "none";
         pauseIcon.style.display = "block";
         masterBtnText.textContent = "Pause Broadcast";
-        waveform.classList.add("playing");
+        gestureScreen.classList.add("playing");
       } else {
         playIcon.style.display = "block";
         pauseIcon.style.display = "none";
         masterBtnText.textContent = isLive ? "Tap to Start AIR FM Rainbow Radio" : "Play Recording";
-        waveform.classList.remove("playing");
+        gestureScreen.classList.remove("playing");
       }
     }
 
+    // Time & Scrubber Tracker
     audio.addEventListener("timeupdate", () => {
       if (!isLive && audio.duration) {
         const pct = (audio.currentTime / audio.duration) * 100;
@@ -700,70 +714,106 @@
       return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
     }
 
-    function seekByBar(e) {
+    // YouTube Scrubber Drag & Click
+    let isScrubbing = false;
+    function seekFromEvent(e) {
       if (isLive || !audio.duration) return;
-      const rect = document.getElementById("progress-container").getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      audio.currentTime = (clickX / rect.width) * audio.duration;
+      const rect = progressContainer.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      audio.currentTime = ratio * audio.duration;
     }
 
-    // Touch & Seek Operations
-    function seekDelta(sec) {
+    progressContainer.addEventListener("mousedown", (e) => { isScrubbing = true; seekFromEvent(e); });
+    progressContainer.addEventListener("touchstart", (e) => { isScrubbing = true; seekFromEvent(e); });
+    window.addEventListener("mousemove", (e) => { if (isScrubbing) seekFromEvent(e); });
+    window.addEventListener("touchmove", (e) => { if (isScrubbing) seekFromEvent(e); });
+    window.addEventListener("mouseup", () => { isScrubbing = false; });
+    window.addEventListener("touchend", () => { isScrubbing = false; });
+
+    // YouTube Double-Tap, Touch & Hold, and Screen Seek
+    let lastTap = 0;
+    let holdTimeout = null;
+    let holdInterval = null;
+
+    function showPill(txt) {
+      gesturePill.textContent = txt;
+      gesturePill.style.opacity = "1";
+      setTimeout(() => { gesturePill.style.opacity = "0"; }, 650);
+    }
+
+    function seekRelative(sec) {
+      if (isLive || !audio.duration) return;
+      audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + sec));
+      showPill(sec > 0 ? `+${sec}s` : `${sec}s`);
+    }
+
+    gestureScreen.addEventListener("touchstart", (e) => {
       if (isLive) return;
-      const target = Math.max(0, Math.min(audio.duration || 3600, audio.currentTime + sec));
-      audio.currentTime = target;
-      showIndicator(sec > 0 ? `+${sec}s` : `${sec}s`);
-    }
+      const rect = gestureScreen.getBoundingClientRect();
+      const touchX = e.touches[0].clientX - rect.left;
+      const isRightSide = touchX > rect.width / 2;
+      const delta = isRightSide ? 10 : -10;
 
-    function bindSeek(btn, sec) {
-      let pressTimer = null;
-      let loopTimer = null;
+      // Double tap check (< 300ms)
+      const now = Date.now();
+      if (now - lastTap < 300) {
+        clearTimeout(holdTimeout);
+        seekRelative(delta * 2);
+        lastTap = 0;
+        return;
+      }
+      lastTap = now;
 
-      btn.addEventListener("click", () => seekDelta(sec));
-
-      btn.addEventListener("touchstart", (e) => {
-        e.preventDefault();
-        pressTimer = setTimeout(() => {
-          loopTimer = setInterval(() => seekDelta(sec * 2), 200);
-        }, 350);
-      });
-
-      const clear = () => {
-        clearTimeout(pressTimer);
-        clearInterval(loopTimer);
-      };
-      btn.addEventListener("touchend", clear);
-      btn.addEventListener("touchcancel", clear);
-    }
-
-    bindSeek(document.getElementById("btn-seek-back"), -10);
-    bindSeek(document.getElementById("btn-seek-forward"), 10);
-
-    // Waveform click to scrub
-    waveform.addEventListener("click", (e) => {
-      if (isLive || !audio.duration) return;
-      const rect = waveform.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      audio.currentTime = (clickX / rect.width) * audio.duration;
-      showIndicator("Scrubbed");
+      // Touch and Hold to fast-seek continuous
+      holdTimeout = setTimeout(() => {
+        showPill(isRightSide ? "Fast-Forward ⏩" : "Rewind ⏪");
+        holdInterval = setInterval(() => {
+          seekRelative(delta * 1.5);
+        }, 220);
+      }, 350);
     });
 
-    function showIndicator(txt) {
-      gestureIndicator.textContent = txt;
-      gestureIndicator.style.opacity = "1";
-      setTimeout(() => { gestureIndicator.style.opacity = "0"; }, 500);
+    const stopGesture = () => {
+      clearTimeout(holdTimeout);
+      clearInterval(holdInterval);
+    };
+    gestureScreen.addEventListener("touchend", stopGesture);
+    gestureScreen.addEventListener("touchcancel", stopGesture);
+
+    // Seek Buttons
+    function bindButtonSeek(btn, delta) {
+      let bTimer = null;
+      let bLoop = null;
+
+      btn.addEventListener("click", () => seekRelative(delta));
+      btn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        bTimer = setTimeout(() => {
+          bLoop = setInterval(() => seekRelative(delta), 200);
+        }, 300);
+      });
+      const end = () => {
+        clearTimeout(bTimer);
+        clearInterval(bLoop);
+      };
+      btn.addEventListener("touchend", end);
+      btn.addEventListener("touchcancel", end);
     }
+
+    bindButtonSeek(document.getElementById("btn-seek-back"), -10);
+    bindButtonSeek(document.getElementById("btn-seek-forward"), 10);
 
     // Speed Controls
     const speeds = [1, 1.25, 1.5, 2];
-    let curSpeed = 0;
+    let spdIndex = 0;
     function cycleSpeed() {
-      curSpeed = (curSpeed + 1) % speeds.length;
-      audio.playbackRate = speeds[curSpeed];
-      document.getElementById("speed-btn").textContent = speeds[curSpeed] + "x";
+      spdIndex = (spdIndex + 1) % speeds.length;
+      audio.playbackRate = speeds[spdIndex];
+      document.getElementById("speed-btn").textContent = speeds[spdIndex] + "x";
     }
 
-    // Date Functions
+    // Dates & Slots
     function getFormattedDate(d, format) {
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -807,7 +857,6 @@
       updateDateUI();
     }
 
-    // Initial setup on boot
     updateDateUI();
   </script>
 </body>
