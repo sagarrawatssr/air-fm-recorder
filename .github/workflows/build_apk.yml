@@ -16,6 +16,10 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | sdkmanager --licenses || true
+
       - name: Scaffold Native Android Project with Audio Focus Bypass
         run: |
           mkdir -p android_app/app/src/main/java/com/sagarrawatssr/airfm
@@ -47,7 +51,7 @@ jobs:
           # 2. settings.gradle
           echo "include ':app'" > android_app/settings.gradle
 
-          # 3. app/build.gradle
+          # 3. app/build.gradle (Zero external dependencies to avoid runtime classpath conflicts)
           cat << 'EOF' > android_app/app/build.gradle
           plugins {
               id 'com.android.application'
@@ -72,9 +76,6 @@ jobs:
                   targetCompatibility JavaVersion.VERSION_17
               }
           }
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-          }
           EOF
 
           # 4. AndroidManifest.xml
@@ -82,12 +83,11 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
               <uses-permission android:name="android.permission.WAKE_LOCK" />
               <application
                   android:allowBackup="true"
                   android:label="AIR FM Rainbow"
-                  android:theme="@style/Theme.AppCompat.NoActionBar"
+                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
                   android:usesCleartextTraffic="true">
                   <activity
                       android:name=".MainActivity"
@@ -102,10 +102,11 @@ jobs:
           </manifest>
           EOF
 
-          # 5. Native Java Code (VLC Style Audio Focus Ignore)
+          # 5. Native Java Code (Standard Android Activity + Audio Focus Bypass)
           cat << 'EOF' > android_app/app/src/main/java/com/sagarrawatssr/airfm/MainActivity.java
           package com.sagarrawatssr.airfm;
 
+          import android.app.Activity;
           import android.os.Bundle;
           import android.os.Build;
           import android.media.AudioAttributes;
@@ -115,9 +116,8 @@ jobs:
           import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
-          import androidx.appcompat.app.AppCompatActivity;
 
-          public class MainActivity extends AppCompatActivity {
+          public class MainActivity extends Activity {
               private WebView webView;
               private AudioManager audioManager;
 
@@ -125,10 +125,11 @@ jobs:
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
 
+                  // Native Audio Focus Bypass: Consume focus loss so background apps won't pause playback
                   audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
                   if (audioManager != null) {
-                      AudioManager.OnAudioFocusChangeListener listener = focusChange -> {
-                          // Ignore focus loss: other apps will not pause this audio
+                      AudioManager.OnAudioFocusChangeListener dummyListener = focusChange -> {
+                          // DO NOTHING -> Never pause when other audio starts
                       };
                       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                           AudioAttributes attrs = new AudioAttributes.Builder()
@@ -139,14 +140,15 @@ jobs:
                                   .setAudioAttributes(attrs)
                                   .setAcceptsDelayedFocusGain(false)
                                   .setWillPauseWhenDucked(false)
-                                  .setOnAudioFocusChangeListener(listener)
+                                  .setOnAudioFocusChangeListener(dummyListener)
                                   .build();
                           audioManager.requestAudioFocus(focusRequest);
                       } else {
-                          audioManager.requestAudioFocus(listener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+                          audioManager.requestAudioFocus(dummyListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
                       }
                   }
 
+                  // Hardware Accelerated Fullscreen WebView
                   webView = new WebView(this);
                   setContentView(webView);
 
