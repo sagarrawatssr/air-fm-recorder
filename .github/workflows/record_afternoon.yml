@@ -34,6 +34,24 @@ jobs:
               echo "Clock reached 1:00 PM IST ($CURRENT_HOUR:00). Halting morning recorder."
               break
             fi
+
+            # 2. Calculate seconds remaining until :54 of this hour (or next hour if already past :54)
+            MIN="$(TZ='Asia/Kolkata' date +'%-M')"
+            SEC="$(TZ='Asia/Kolkata' date +'%-S')"
+            TARGET_MIN=54
+
+            if [ "$MIN" -lt "$TARGET_MIN" ]; then
+              # Target is in the current hour
+              RECORD_SECONDS=$(( (TARGET_MIN - MIN) * 60 - SEC ))
+            else
+              # Already past :54; record until :54 of the NEXT hour
+              RECORD_SECONDS=$(( (60 - MIN + TARGET_MIN) * 60 - SEC ))
+            fi
+
+            # Guard rail: ensure we record at least 60 seconds
+            if [ "$RECORD_SECONDS" -lt 60 ]; then
+              RECORD_SECONDS=3600
+            fi
             echo "--- Recording hour chunk $i for 3600 seconds ---"
             ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
               -fflags +nobuffer+flush_packets \
