@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-  <!-- HLS.js for Streaming -->
+  <!-- HLS.js for Live Streaming -->
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
   <style>
@@ -155,10 +155,10 @@
       color: var(--text-muted);
     }
 
-    /* Waveform / Visualizer Bar */
+    /* Waveform Box */
     .waveform-wrapper {
       width: 100%;
-      height: 38px;
+      height: 42px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -172,11 +172,12 @@
     }
 
     .wave-bar {
-      width: 6px;
-      height: 4px;
+      flex: 1;
+      max-width: 8px;
+      height: 6px;
       background: #38bdf8;
       border-radius: 3px;
-      transition: height 0.15s ease;
+      transition: height 0.12s ease;
     }
 
     .waveform-wrapper.playing .wave-bar {
@@ -184,11 +185,11 @@
     }
 
     @keyframes pulse {
-      0% { height: 4px; }
-      100% { height: 26px; }
+      0% { height: 6px; }
+      100% { height: 30px; }
     }
 
-    /* Progress and Timers */
+    /* Progress Bar */
     .timeline-scrubber {
       width: 100%;
       display: flex;
@@ -198,9 +199,9 @@
 
     .progress-bar-bg {
       width: 100%;
-      height: 4px;
+      height: 6px;
       background: #1e293b;
-      border-radius: 2px;
+      border-radius: 3px;
       cursor: pointer;
       position: relative;
     }
@@ -209,7 +210,8 @@
       height: 100%;
       width: 0%;
       background: var(--accent-blue);
-      border-radius: 2px;
+      border-radius: 3px;
+      pointer-events: none;
     }
 
     .time-labels {
@@ -220,7 +222,7 @@
       font-variant-numeric: tabular-nums;
     }
 
-    /* YouTube Like Center Controls */
+    /* Controls */
     .control-row {
       display: flex;
       justify-content: space-around;
@@ -248,8 +250,8 @@
     }
 
     .seek-btn svg {
-      width: 26px;
-      height: 26px;
+      width: 28px;
+      height: 28px;
       fill: currentColor;
     }
 
@@ -273,7 +275,7 @@
       fill: currentColor;
     }
 
-    /* Footer Slider & Speed */
+    /* Volume & Speed */
     .sub-controls {
       display: flex;
       align-items: center;
@@ -297,7 +299,7 @@
       cursor: pointer;
     }
 
-    /* Error Notice Alert Box */
+    /* Error Alert Box */
     .alert-box {
       background: rgba(239, 68, 68, 0.12);
       border: 1px solid rgba(239, 68, 68, 0.3);
@@ -326,7 +328,7 @@
       white-space: nowrap;
     }
 
-    /* Date Selection Pills */
+    /* Date Pills */
     .date-pill-group {
       display: flex;
       gap: 8px;
@@ -374,7 +376,7 @@
       font-weight: 600;
     }
 
-    /* Timeline Slot Grid */
+    /* Slots */
     .timeline-title {
       font-size: 0.75rem;
       font-weight: 700;
@@ -425,26 +427,26 @@
       color: var(--text-muted);
     }
 
-    /* Gesture Overlay animation */
     .gesture-hint {
       position: absolute;
       top: 50%;
-      transform: translateY(-50%);
-      background: rgba(37, 99, 235, 0.8);
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(37, 99, 235, 0.9);
       color: white;
-      font-size: 0.8rem;
-      padding: 6px 12px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 4px 14px;
       border-radius: 20px;
       pointer-events: none;
       opacity: 0;
-      transition: opacity 0.2s;
+      transition: opacity 0.15s;
     }
   </style>
 </head>
 <body>
 
   <div class="app-container">
-    <!-- Header -->
     <div class="header-bar">
       <div class="title-area">
         <h1>AIR FM Rainbow</h1>
@@ -453,13 +455,11 @@
       <div class="freq-badge">102.6 MHz</div>
     </div>
 
-    <!-- Master Trigger Button -->
     <button class="master-btn" id="master-btn" onclick="togglePlay()">
       <span id="master-btn-icon">▶</span> <span id="master-btn-text">Tap to Start AIR FM Rainbow Radio</span>
     </button>
 
-    <!-- Main Player Card -->
-    <div class="player-card" id="player-container">
+    <div class="player-card">
       <div class="mode-indicators">
         <div class="live-tag" id="live-badge">
           <span class="live-dot"></span> LIVE
@@ -472,10 +472,9 @@
         <p id="player-sub">All India Radio • 102.6 MHz FM</p>
       </div>
 
-      <!-- Waveform Box with YouTube-style touch to seek / hold to scan -->
+      <!-- Waveform Container with Interactive Touch Seek -->
       <div class="waveform-wrapper" id="waveform-box">
         <div class="gesture-hint" id="gesture-indicator">10s</div>
-        <!-- 28 Waveform Bars -->
         <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
         <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
         <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
@@ -484,11 +483,9 @@
         <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
         <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
         <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
-        <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
-        <div class="wave-bar"></div>
       </div>
 
-      <!-- Scrubber & Time -->
+      <!-- Scrubber -->
       <div class="timeline-scrubber">
         <div class="progress-bar-bg" id="progress-container" onclick="seekByBar(event)">
           <div class="progress-bar-fill" id="progress-fill"></div>
@@ -499,9 +496,9 @@
         </div>
       </div>
 
-      <!-- YouTube Controls (Rewind, Play/Pause, Fast Forward) -->
+      <!-- Center Controls -->
       <div class="control-row">
-        <button class="seek-btn" id="btn-seek-back" title="Rewind 10s">
+        <button class="seek-btn" id="btn-seek-back">
           <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.2 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
           <span>-10s</span>
         </button>
@@ -511,27 +508,27 @@
           <svg id="pause-icon" viewBox="0 0 24 24" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
         </button>
 
-        <button class="seek-btn" id="btn-seek-forward" title="Forward 10s">
+        <button class="seek-btn" id="btn-seek-forward">
           <svg viewBox="0 0 24 24"><path d="M10 12.5c0 .28-.22.5-.5.5s-.5-.22-.5-.5.22-.5.5-.5.5.22.5.5zm8.9-1.9C17.05 8.99 14.65 8 12 8c-4.65 0-8.58 3.03-9.97 7.22l2.37.78C5.45 12.81 8.46 10.5 12 10.5c1.96 0 3.73.68 5.12 1.88L13.5 16H22.5V7l-3.6 3.6z"/></svg>
           <span>+10s</span>
         </button>
       </div>
 
-      <!-- Volume & Speed Controls -->
+      <!-- Volume / Speed -->
       <div class="sub-controls">
         <span style="font-size: 0.8rem;">🔊</span>
-        <input type="range" class="vol-slider" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)">
+        <input type="range" class="vol-slider" min="0" max="1" step="0.05" value="1" oninput="audio.volume = this.value">
         <button class="speed-btn" id="speed-btn" onclick="cycleSpeed()">1x</button>
       </div>
     </div>
 
-    <!-- Error Notice Box -->
+    <!-- Alert Box -->
     <div class="alert-box" id="error-box">
       <p id="error-msg">Recording not found. It may still be recording or expired.</p>
       <button class="btn-alert-live" onclick="switchToLiveEdge()">Go Live</button>
     </div>
 
-    <!-- Date Navigation -->
+    <!-- Date Selectors -->
     <div class="date-pill-group">
       <button class="date-pill active" onclick="selectQuickDate(0, this)">Today</button>
       <button class="date-pill" onclick="selectQuickDate(1, this)">Yesterday</button>
@@ -540,16 +537,15 @@
 
     <div class="date-navigator">
       <button class="nav-arrow" onclick="adjustDate(-1)">❮</button>
-      <span class="date-display" id="date-label">19/09/2026</span>
+      <span class="date-display" id="date-label"></span>
       <button class="nav-arrow" onclick="adjustDate(1)">❯</button>
     </div>
 
-    <!-- Timeline Slots -->
+    <!-- Slots -->
     <div class="timeline-title">
       <span>HOURLY TIMELINE (07 AM – 07 PM IST)</span>
       <span>Sweep Next →</span>
     </div>
-
     <div class="slot-scroll" id="slot-container"></div>
   </div>
 
@@ -577,8 +573,6 @@
 
     let hls = null;
     let isLive = true;
-    let userIntentPlaying = false;
-    let resumeTimeout = null;
     let currentDate = new Date();
 
     const SLOTS = [
@@ -596,90 +590,20 @@
       { id: "11", name: "SLOT 12", time: "06 - 07 PM" }
     ];
 
-    // Initialize Stream
-    function initHls() {
-      if (Hls.isSupported()) {
-        if (hls) hls.destroy();
-        hls = new Hls({
-          liveSyncDurationCount: 1,
-          liveMaxLatencyDurationCount: 2,
-          enableWorker: true
-        });
-        hls.loadSource(STREAM_URL);
-        hls.attachMedia(audio);
-      } else if (audio.canPlayType("application/vnd.apple.mpegurl")) {
-        audio.src = STREAM_URL;
-      }
-    }
-
-    // Auto-Resume with smart debouncing (fixes the 1ms stutter/glitch)
-    audio.addEventListener("pause", () => {
-      syncUiState(false);
-      clearTimeout(resumeTimeout);
-
-      // Only auto-resume if the user didn't intentionally tap pause
-      // and when Chrome is visible (not conflicting with foreground YouTube)
-      if (userIntentPlaying && !document.hidden) {
-        resumeTimeout = setTimeout(() => {
-          if (userIntentPlaying && audio.paused) {
-            audio.play().catch(() => {
-              userIntentPlaying = false;
-              syncUiState(false);
-            });
-          }
-        }, 1500); // 1.5s delay gives external apps exclusive focus cleanly
-      }
-    });
-
-    audio.addEventListener("play", () => {
-      userIntentPlaying = true;
-      syncUiState(true);
-      errorBox.style.display = "none";
-    });
-
-    // When returning to this browser tab, auto-resume if desired
-    document.addEventListener("visibilitychange", () => {
-      if (!document.hidden && userIntentPlaying && audio.paused) {
-        if (isLive) {
-          switchToLiveEdge();
-        } else {
-          audio.play().catch(() => {});
-        }
-      }
-    });
-
-    function syncUiState(isPlaying) {
-      if (isPlaying) {
-        playIcon.style.display = "none";
-        pauseIcon.style.display = "block";
-        masterBtnText.textContent = "Pause Broadcast";
-        waveform.classList.add("playing");
-      } else {
-        playIcon.style.display = "block";
-        pauseIcon.style.display = "none";
-        masterBtnText.textContent = isLive ? "Tap to Start AIR FM Rainbow Radio" : "Play Recording";
-        waveform.classList.remove("playing");
-      }
-    }
-
     function togglePlay() {
       if (audio.paused) {
-        userIntentPlaying = true;
-        if (isLive) {
+        if (!audio.src && isLive) {
           switchToLiveEdge();
         } else {
-          audio.play().catch(() => {});
+          audio.play().catch(e => console.log("Playback start prevented:", e));
         }
       } else {
-        userIntentPlaying = false;
-        clearTimeout(resumeTimeout);
         audio.pause();
       }
     }
 
     function switchToLiveEdge() {
       isLive = true;
-      userIntentPlaying = true;
       liveBadge.style.display = "inline-flex";
       modeText.textContent = "LIVE BROADCAST";
       playerTitle.textContent = "FM Rainbow: Live Stream";
@@ -687,21 +611,26 @@
       document.querySelectorAll(".slot-card").forEach(c => c.classList.remove("active"));
       errorBox.style.display = "none";
 
-      if (hls) {
-        hls.stopLoad();
+      if (Hls.isSupported()) {
+        if (hls) hls.destroy();
+        hls = new Hls({
+          liveSyncDurationCount: 1,
+          liveMaxLatencyDurationCount: 2,
+          enableWorker: true
+        });
         hls.loadSource(STREAM_URL + "?ts=" + Date.now());
-        hls.startLoad(-1);
+        hls.attachMedia(audio);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          audio.play().catch(() => {});
+        });
       } else {
         audio.src = STREAM_URL + "?ts=" + Date.now();
-        audio.currentTime = 0;
+        audio.play().catch(() => {});
       }
-      audio.play().catch(() => {});
     }
 
-    // Play Archive Slot
     function playSlot(slotId, card) {
       isLive = false;
-      userIntentPlaying = true;
 
       if (hls) {
         hls.destroy();
@@ -729,17 +658,34 @@
       }).catch(() => {
         errorMsg.textContent = `Recording not found (${targetFile}). It may still be recording or expired.`;
         errorBox.style.display = "flex";
-        syncUiState(false);
+        syncUi(false);
       });
     }
 
-    // Progress and Time
+    // UI Updates
+    audio.addEventListener("play", () => syncUi(true));
+    audio.addEventListener("pause", () => syncUi(false));
+
+    function syncUi(playing) {
+      if (playing) {
+        playIcon.style.display = "none";
+        pauseIcon.style.display = "block";
+        masterBtnText.textContent = "Pause Broadcast";
+        waveform.classList.add("playing");
+      } else {
+        playIcon.style.display = "block";
+        pauseIcon.style.display = "none";
+        masterBtnText.textContent = isLive ? "Tap to Start AIR FM Rainbow Radio" : "Play Recording";
+        waveform.classList.remove("playing");
+      }
+    }
+
     audio.addEventListener("timeupdate", () => {
       if (!isLive && audio.duration) {
         const pct = (audio.currentTime / audio.duration) * 100;
         progressFill.style.width = pct + "%";
-        timeCurrent.textContent = formatTime(audio.currentTime);
-        timeTotal.textContent = formatTime(audio.duration);
+        timeCurrent.textContent = formatSec(audio.currentTime);
+        timeTotal.textContent = formatSec(audio.duration);
       } else {
         progressFill.style.width = "100%";
         timeCurrent.textContent = "LIVE";
@@ -747,99 +693,83 @@
       }
     });
 
-    function formatTime(secs) {
-      if (isNaN(secs)) return "00:00";
-      const m = Math.floor(secs / 60);
-      const s = Math.floor(secs % 60);
-      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    function formatSec(s) {
+      if (isNaN(s)) return "00:00";
+      const min = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
     }
 
     function seekByBar(e) {
       if (isLive || !audio.duration) return;
-      const rect = e.currentTarget.getBoundingClientRect();
+      const rect = document.getElementById("progress-container").getBoundingClientRect();
       const clickX = e.clientX - rect.left;
       audio.currentTime = (clickX / rect.width) * audio.duration;
     }
 
-    // YouTube-Like Seek Gestures (Tap & Hold to Scan)
-    function setupTouchGestures(element, delta) {
-      let holdTimer = null;
-      let intervalTimer = null;
+    // Touch & Seek Operations
+    function seekDelta(sec) {
+      if (isLive) return;
+      const target = Math.max(0, Math.min(audio.duration || 3600, audio.currentTime + sec));
+      audio.currentTime = target;
+      showIndicator(sec > 0 ? `+${sec}s` : `${sec}s`);
+    }
 
-      function performSeek() {
-        if (isLive) return;
-        audio.currentTime = Math.max(0, Math.min(audio.duration || 3600, audio.currentTime + delta));
-        showGestureHint(delta > 0 ? `+${delta}s` : `${delta}s`);
-      }
+    function bindSeek(btn, sec) {
+      let pressTimer = null;
+      let loopTimer = null;
 
-      element.addEventListener("click", performSeek);
+      btn.addEventListener("click", () => seekDelta(sec));
 
-      // Touch and Hold for continuous seeking
-      element.addEventListener("touchstart", (e) => {
+      btn.addEventListener("touchstart", (e) => {
         e.preventDefault();
-        holdTimer = setTimeout(() => {
-          intervalTimer = setInterval(performSeek, 250);
-        }, 400);
+        pressTimer = setTimeout(() => {
+          loopTimer = setInterval(() => seekDelta(sec * 2), 200);
+        }, 350);
       });
 
-      const endHold = () => {
-        clearTimeout(holdTimer);
-        clearInterval(intervalTimer);
+      const clear = () => {
+        clearTimeout(pressTimer);
+        clearInterval(loopTimer);
       };
-
-      element.addEventListener("touchend", endHold);
-      element.addEventListener("touchcancel", endHold);
+      btn.addEventListener("touchend", clear);
+      btn.addEventListener("touchcancel", clear);
     }
 
-    setupTouchGestures(document.getElementById("btn-seek-back"), -10);
-    setupTouchGestures(document.getElementById("btn-seek-forward"), 10);
+    bindSeek(document.getElementById("btn-seek-back"), -10);
+    bindSeek(document.getElementById("btn-seek-forward"), 10);
 
-    function showGestureHint(text) {
-      gestureIndicator.textContent = text;
+    // Waveform click to scrub
+    waveform.addEventListener("click", (e) => {
+      if (isLive || !audio.duration) return;
+      const rect = waveform.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      audio.currentTime = (clickX / rect.width) * audio.duration;
+      showIndicator("Scrubbed");
+    });
+
+    function showIndicator(txt) {
+      gestureIndicator.textContent = txt;
       gestureIndicator.style.opacity = "1";
-      setTimeout(() => { gestureIndicator.style.opacity = "0"; }, 600);
+      setTimeout(() => { gestureIndicator.style.opacity = "0"; }, 500);
     }
 
-    // Speed & Volume
+    // Speed Controls
     const speeds = [1, 1.25, 1.5, 2];
-    let speedIdx = 0;
+    let curSpeed = 0;
     function cycleSpeed() {
-      speedIdx = (speedIdx + 1) % speeds.length;
-      const spd = speeds[speedIdx];
-      audio.playbackRate = spd;
-      document.getElementById("speed-btn").textContent = spd + "x";
+      curSpeed = (curSpeed + 1) % speeds.length;
+      audio.playbackRate = speeds[curSpeed];
+      document.getElementById("speed-btn").textContent = speeds[curSpeed] + "x";
     }
 
-    function setVolume(val) {
-      audio.volume = val;
-    }
-
-    // Date & Timeline Rendering
+    // Date Functions
     function getFormattedDate(d, format) {
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
       if (format === "YYYY-MM-DD") return `${year}-${month}-${day}`;
       return `${day}/${month}/${year}`;
-    }
-
-    function updateDateLabel() {
-      document.getElementById("date-label").textContent = getFormattedDate(currentDate, "DD/MM/YYYY");
-      renderSlots();
-    }
-
-    function adjustDate(offset) {
-      currentDate.setDate(currentDate.getDate() + offset);
-      document.querySelectorAll(".date-pill").forEach(p => p.classList.remove("active"));
-      updateDateLabel();
-    }
-
-    function selectQuickDate(offset, pill) {
-      currentDate = new Date();
-      currentDate.setDate(currentDate.getDate() - offset);
-      document.querySelectorAll(".date-pill").forEach(p => p.classList.remove("active"));
-      pill.classList.add("active");
-      updateDateLabel();
     }
 
     function renderSlots() {
@@ -858,9 +788,27 @@
       });
     }
 
-    // Initialize on page load
-    updateDateLabel();
-    initHls();
+    function updateDateUI() {
+      document.getElementById("date-label").textContent = getFormattedDate(currentDate, "DD/MM/YYYY");
+      renderSlots();
+    }
+
+    function adjustDate(offset) {
+      currentDate.setDate(currentDate.getDate() + offset);
+      document.querySelectorAll(".date-pill").forEach(p => p.classList.remove("active"));
+      updateDateUI();
+    }
+
+    function selectQuickDate(offset, pill) {
+      currentDate = new Date();
+      currentDate.setDate(currentDate.getDate() - offset);
+      document.querySelectorAll(".date-pill").forEach(p => p.classList.remove("active"));
+      pill.classList.add("active");
+      updateDateUI();
+    }
+
+    // Initial setup on boot
+    updateDateUI();
   </script>
 </body>
 </html>
