@@ -7,43 +7,50 @@ permissions:
   contents: write
 
 jobs:
-  build_twa:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install Bubblewrap CLI
-        run: npm install -g @bubblewrap/cli
-
-      - name: Initialize and Build APK (Non-Interactive)
-        env:
-          JAVA_HOME: /usr/lib/jvm/zulu-17-amd64
+      - name: Pre-configure Bubblewrap & Build APK
         run: |
-          mkdir -p build_dir && cd build_dir
-          
-          # Run init non-interactively using 'yes' pipe
-          yes "" | bubblewrap init --manifest="https://sagarrawatssr.github.io/air-fm-recorder/manifest.json" --skipPwaValidation
-          
-          # Build signed/debug APK non-interactively
-          yes "" | bubblewrap build || bubblewrap build --skipSigning
+          npm install -g @bubblewrap/cli
 
-      - name: Upload APK Artifact
+          # 1. Bubblewrap looks for configuration in ~/.bubblewrap/config.json
+          # GitHub Actions runners already have Java and Android SDK installed here:
+          mkdir -p ~/.bubblewrap
+          cat <<EOF > ~/.bubblewrap/config.json
+          {
+            "jdkPath": "${JAVA_HOME}",
+            "androidSdkPath": "${ANDROID_HOME}"
+          }
+          EOF
+
+          mkdir -p app_build && cd app_build
+
+          # 2. Automatically generate twa-manifest.json from your live PWA manifest
+          npx @bubblewrap/cli init \
+            --manifest="https://sagarrawatssr.github.io/air-fm-recorder/manifest.json" \
+            --skipPwaValidation \
+            --chromeOSOnly=false
+
+          # 3. Build unsigned/debug APK without blocking for keystore inputs
+          npx @bubblewrap/cli build --skipSigning
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: AIR-FM-Rainbow-APK
-          path: build_dir/*.apk
+          path: app_build/*.apk
