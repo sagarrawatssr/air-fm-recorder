@@ -24,12 +24,11 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Pre-configure Bubblewrap & Build APK
+      - name: Build Android APK via Bubblewrap
         run: |
           npm install -g @bubblewrap/cli
 
-          # 1. Bubblewrap looks for configuration in ~/.bubblewrap/config.json
-          # GitHub Actions runners already have Java and Android SDK installed here:
+          # Configure Bubblewrap paths
           mkdir -p ~/.bubblewrap
           cat <<EOF > ~/.bubblewrap/config.json
           {
@@ -40,16 +39,40 @@ jobs:
 
           mkdir -p app_build && cd app_build
 
-          # 2. Automatically generate twa-manifest.json from your live PWA manifest
-          npx @bubblewrap/cli init \
-            --manifest="https://sagarrawatssr.github.io/air-fm-recorder/manifest.json" \
-            --skipPwaValidation \
-            --chromeOSOnly=false
+          # Create a local twa-manifest.json directly so no remote 404 can happen
+          cat <<EOF > twa-manifest.json
+          {
+            "packageId": "com.sagarrawatssr.airfmrainbow",
+            "host": "sagarrawatssr.github.io",
+            "name": "AIR FM Rainbow",
+            "launcherName": "FM Rainbow",
+            "themeColor": "#0b0f19",
+            "navigationColor": "#0b0f19",
+            "backgroundColor": "#0b0f19",
+            "startUrl": "/air-fm-recorder/index.html",
+            "iconUrl": "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/icon.png",
+            "maskableIconUrl": "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/icon.png",
+            "appVersionCode": 1,
+            "appVersionName": "1.0.0",
+            "shortcuts": [],
+            "generatorApp": "bubblewrap-cli",
+            "webManifestUrl": "https://sagarrawatssr.github.io/air-fm-recorder/manifest.json",
+            "fallbackType": "customtabs",
+            "features": {},
+            "alphaDependencies": {
+              "enabled": false
+            },
+            "enableNotifications": false
+          }
+          EOF
 
-          # 3. Build unsigned/debug APK without blocking for keystore inputs
+          # Download a default app icon if one doesn't exist
+          curl -s -L -o icon.png "https://cdn-icons-png.flaticon.com/512/3075/3075908.png"
+
+          # Generate the Android project from the local file
           npx @bubblewrap/cli build --skipSigning
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: AIR-FM-Rainbow-APK
