@@ -28,12 +28,14 @@ jobs:
           STREAM_URL="https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
 
           for i in $(seq -w 0 5); do
-            # Cutoff: Stop if clock reaches or passes 1:00 PM IST (13:00)
+            # NEW CODE: Halts if it's 18:54 or later to prevent recording past 7:00 PM
             CURRENT_HOUR="$(TZ='Asia/Kolkata' date +'%-H')"
-            if [ "$CURRENT_HOUR" -ge 13 ]; then
-              echo "Clock reached 1:00 PM IST cutoff ($CURRENT_HOUR:00). Halting morning recorder."
-              break
+            CURRENT_MIN="$(TZ='Asia/Kolkata' date +'%-M')"
+            if [ "$CURRENT_HOUR" -gt 18 ] || { [ "$CURRENT_HOUR" -eq 18 ] && [ "$CURRENT_MIN" -ge 54 ]; }; then
+               echo "Clock reached 6:54 PM IST cutoff ($CURRENT_HOUR:$CURRENT_MIN). Halting afternoon recorder."
+               break
             fi
+            
 
             # Calculate seconds remaining until :54 mark
             MIN="$(TZ='Asia/Kolkata' date +'%-M')"
