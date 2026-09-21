@@ -778,7 +778,6 @@
 
   <audio id="coreAudio" playsinline preload="none"></audio>
 </div>
-
 <script>
   const REPO_OWNER = "sagarrawatssr";
   const REPO_NAME = "air-fm-recorder";
@@ -810,11 +809,12 @@
   const ctx = canvas.getContext("2d");
 
   let hlsInstance = null;
-  let activeIndex = -1; 
+  let activeIndex = -1; // -1 represents LIVE
   let currentSpeedIndex = 1;
   const speedOptions = [0.75, 1.0, 1.25, 1.5];
   let isNativePlaying = false;
   let currentDurationSec = 3600;
+  let currentPositionSec = 0;
 
   const hourBlocks = [
     { label: "07 - 08 AM", file: "hour_00.mp3" },
@@ -853,33 +853,37 @@
     timelineTrack.appendChild(card);
   });
 
-  // Native Progress Synchronization
+  // Native Progress & Live vs Archive UI Sync
   window.onNativeProgressSync = function(curMs, durMs, isPlaying) {
     isNativePlaying = isPlaying;
     setPlayState(isPlaying);
 
+    // LIVE MODE: Locked at 100%
     if (activeIndex === -1) {
       currentTimeDisplay.innerText = "00:00";
       totalDurationDisplay.innerText = "LIVE";
       progressBar.style.width = "100%";
       scrubThumb.style.left = "100%";
+      bufferBar.style.width = "100%";
       return;
     }
 
-    if (durMs > 0) {
+    // ARCHIVE MODE: Smooth 0 -> Max timeline movement
+    if (durMs && durMs > 0) {
       currentDurationSec = durMs / 1000;
     } else {
       currentDurationSec = 3600;
     }
 
-    const curSec = curMs / 1000;
-    currentTimeDisplay.innerText = formatSeconds(curSec);
+    currentPositionSec = Math.max(0, Math.min(curMs / 1000, currentDurationSec));
+    currentTimeDisplay.innerText = formatSeconds(currentPositionSec);
     totalDurationDisplay.innerText = formatSeconds(currentDurationSec);
 
     if (!isScrubbing) {
-      const pct = Math.min(100, Math.max(0, (curSec / currentDurationSec) * 100));
-      progressBar.style.width = pct + "%";
-      scrubThumb.style.left = pct + "%";
+      const pct = (currentPositionSec / currentDurationSec) * 100;
+      const clampedPct = Math.min(100, Math.max(0, pct));
+      progressBar.style.width = clampedPct + "%";
+      scrubThumb.style.left = clampedPct + "%";
     }
   };
 
@@ -907,6 +911,10 @@
 
     speedPill.classList.add("locked");
     speedLabel.innerText = "1.0x";
+
+    progressBar.style.width = "100%";
+    scrubThumb.style.left = "100%";
+    currentTimeDisplay.innerText = "00:00";
     totalDurationDisplay.innerText = "LIVE";
 
     const freshLiveUrl = `${STREAM_URL}?ts=${Date.now()}`;
@@ -932,11 +940,19 @@
     const slot = hourBlocks[index];
 
     trackHeadline.innerText = `FM Rainbow: ${slot.label}`;
-    trackSubtitle.innerText = `Recorded Archive &bull; ${chosenDate}`;
+    trackSubtitle.innerText = `Recorded Archive • ${chosenDate}`;
     sweepNextBtn.disabled = false;
 
     speedPill.classList.remove("locked");
     speedLabel.innerText = `${speedOptions[currentSpeedIndex]}x`;
+
+    // Reset scrubber to 00:00 start
+    currentPositionSec = 0;
+    currentDurationSec = 3600;
+    progressBar.style.width = "0%";
+    scrubThumb.style.left = "0%";
+    currentTimeDisplay.innerText = "00:00";
+    totalDurationDisplay.innerText = "60:00";
 
     const fileUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/archive-${chosenDate}/${chosenDate}_${hourBlocks[index].file}`;
     if (playViaNativeBridge(fileUrl, `FM Rainbow: ${slot.label}`, `Recorded Archive (${chosenDate})`)) return;
