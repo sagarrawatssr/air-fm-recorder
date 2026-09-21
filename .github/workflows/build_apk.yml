@@ -16,6 +16,10 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | sdkmanager --licenses || true
+
       - name: Build App Project
         run: |
           mkdir -p native_app/app/src/main/java/com/sagar/airfm
@@ -30,25 +34,43 @@ jobs:
           android.enableJetifier=true
           EOF
 
-          # 2. Root build.gradle
-          cat << 'EOF' > native_app/build.gradle
-          buildscript {
-              repositories { google(); mavenCentral() }
-              dependencies { classpath 'com.android.tools.build:gradle:8.4.1' }
+          # 2. Root settings.gradle (Centralized repositories)
+          cat << 'EOF' > native_app/settings.gradle
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
           }
-          allprojects {
-              repositories { google(); mavenCentral() }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "AIR FM Rainbow"
+          include ':app'
+          EOF
+
+          # 3. Root build.gradle (Modern declarative AGP syntax)
+          cat << 'EOF' > native_app/build.gradle
+          plugins {
+              id 'com.android.application' version '8.4.1' apply false
           }
           EOF
 
-          echo "include ':app'" > native_app/settings.gradle
-
-          # 3. App build.gradle (Targeting Android 14/15 SDK 34/35 compatible)
+          # 4. App-level build.gradle
           cat << 'EOF' > native_app/app/build.gradle
-          plugins { id 'com.android.application' }
+          plugins {
+              id 'com.android.application'
+          }
+
           android {
               namespace 'com.sagar.airfm'
               compileSdk 34
+
               defaultConfig {
                   applicationId "com.sagar.airfm"
                   minSdk 26
@@ -56,11 +78,19 @@ jobs:
                   versionCode 1
                   versionName "1.0"
               }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
           }
+
           dependencies {
               implementation 'androidx.media3:media3-exoplayer:1.3.1'
               implementation 'androidx.media3:media3-exoplayer-hls:1.3.1'
@@ -70,7 +100,7 @@ jobs:
           }
           EOF
 
-          # 4. AndroidManifest.xml
+          # 5. AndroidManifest.xml
           cat << 'EOF' > native_app/app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -96,7 +126,7 @@ jobs:
           </manifest>
           EOF
 
-          # 5. RadioService.java (Android 15 Compliant MediaStyle with PlaybackState Sync)
+          # 6. RadioService.java (Android 15 MediaSession Widget & Dual Audio)
           cat << 'EOF' > native_app/app/src/main/java/com/sagar/airfm/RadioService.java
           package com.sagar.airfm;
 
@@ -304,7 +334,7 @@ jobs:
           }
           EOF
 
-          # 6. MainActivity.java (Bridges two-way progress between ExoPlayer and WebView)
+          # 7. MainActivity.java
           cat << 'EOF' > native_app/app/src/main/java/com/sagar/airfm/MainActivity.java
           package com.sagar.airfm;
 
@@ -415,7 +445,7 @@ jobs:
       - name: Build APK
         run: |
           cd native_app
-          gradle wrapper --gradle-version 8.4
+          gradle wrapper --gradle-version 8.7
           ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
