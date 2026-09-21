@@ -305,15 +305,15 @@
       background: var(--yt-red);
       border: 2px solid #fff;
       border-radius: 50%;
-      transform: translate(-50%, -50%) scale(0);
+      transform: translate(-50%, -50%) scale(1);
       pointer-events: none;
-      transition: transform 0.12s ease;
       box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
+      transition: transform 0.12s ease;
     }
 
     .yt-scrub-container:hover .yt-scrub-thumb,
     .yt-scrub-container.is-scrubbing .yt-scrub-thumb {
-      transform: translate(-50%, -50%) scale(1.15);
+      transform: translate(-50%, -50%) scale(1.3);
     }
 
     .scrub-tooltip {
@@ -781,8 +781,6 @@
 
     <div class="timeline-track" id="timelineTrack"></div>
   </div>
-
-  <audio id="coreAudio" playsinline preload="auto"></audio>
 </div>
 
 <script>
@@ -790,7 +788,6 @@
   const REPO_NAME = "air-fm-recorder";
   const STREAM_URL = "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8";
 
-  const coreAudio = document.getElementById("coreAudio");
   const masterPlayBtn = document.getElementById("masterPlayBtn");
   const playIcon = document.getElementById("playIcon");
   const pauseIcon = document.getElementById("pauseIcon");
@@ -815,11 +812,11 @@
   const canvas = document.getElementById("visualizerCanvas");
   const ctx = canvas.getContext("2d");
 
-  let hlsInstance = null;
-  let activeIndex = -1; 
+  let activeIndex = -1; // -1 = Live
   let currentSpeedIndex = 1;
   const speedOptions = [0.75, 1.0, 1.25, 1.5];
-  let isNativePlaying = false;
+  let isPlayingAudio = false;
+  let currentAudioDurationMs = 3600000;
 
   const hourBlocks = [
     { label: "07 - 08 AM", file: "hour_00.mp3" },
@@ -858,19 +855,6 @@
     timelineTrack.appendChild(card);
   });
 
-  // Native Bridge Handler
-  function playViaNativeBridge(url, title, sub) {
-    if (window.NativeAudioBridge) {
-      coreAudio.pause();
-      coreAudio.src = "";
-      window.NativeAudioBridge.play(url, title, sub);
-      isNativePlaying = true;
-      setPlayState(true);
-      return true;
-    }
-    return false;
-  }
-
   function switchToLiveMode() {
     activeIndex = -1;
     clearTimelineHighlights();
@@ -884,12 +868,16 @@
 
     speedPill.classList.add("locked");
     speedLabel.innerText = "1.0x";
-    coreAudio.playbackRate = 1.0;
+
+    currentTimeDisplay.innerText = "00:00";
     totalDurationDisplay.innerText = "LIVE";
+    progressBar.style.width = "100%";
+    scrubThumb.style.left = "100%";
 
     const freshLiveUrl = `${STREAM_URL}?ts=${Date.now()}`;
-    if (playViaNativeBridge(freshLiveUrl, "AIR FM Rainbow 102.6", "Live Broadcast")) return;
-    loadSource(freshLiveUrl, true);
+    if (window.NativeAudioBridge) {
+      window.NativeAudioBridge.play(freshLiveUrl, "AIR FM Rainbow 102.6", "Live Broadcast");
+    }
   }
 
   function playArchive(index) {
@@ -910,59 +898,26 @@
     const slot = hourBlocks[index];
 
     trackHeadline.innerText = `FM Rainbow: ${slot.label}`;
-    trackSubtitle.innerText = `Recorded Archive &bull; ${chosenDate}`;
+    trackSubtitle.innerText = `Recorded Archive • ${chosenDate}`;
     sweepNextBtn.disabled = false;
 
     speedPill.classList.remove("locked");
     speedLabel.innerText = `${speedOptions[currentSpeedIndex]}x`;
 
     const fileUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/archive-${chosenDate}/${chosenDate}_${hourBlocks[index].file}`;
-    if (playViaNativeBridge(fileUrl, `FM Rainbow: ${slot.label}`, `Recorded Archive (${chosenDate})`)) return;
-    loadSource(fileUrl, false);
-  }
-
-  function loadSource(url, isLive) {
-    if (hlsInstance) {
-      hlsInstance.destroy();
-      hlsInstance = null;
-    }
-
-    if (isLive) {
-      if (Hls.isSupported()) {
-        hlsInstance = new Hls({ liveSyncDurationCount: 3, enableWorker: true });
-        hlsInstance.loadSource(url);
-        hlsInstance.attachMedia(coreAudio);
-        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-          coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
-        });
-      } else if (coreAudio.canPlayType("application/vnd.apple.mpegurl")) {
-        coreAudio.src = url;
-        coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
-      }
-    } else {
-      coreAudio.src = url;
-      coreAudio.playbackRate = speedOptions[currentSpeedIndex];
-      coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
+    if (window.NativeAudioBridge) {
+      window.NativeAudioBridge.play(fileUrl, `FM Rainbow: ${slot.label}`, `Recorded (${chosenDate})`);
     }
   }
 
   function togglePlayPause() {
     if (window.NativeAudioBridge) {
       window.NativeAudioBridge.toggle();
-      isNativePlaying = !isNativePlaying;
-      setPlayState(isNativePlaying);
-      return;
-    }
-
-    if (coreAudio.paused) {
-      coreAudio.play().then(() => setPlayState(true)).catch(() => {});
-    } else {
-      coreAudio.pause();
-      setPlayState(false);
     }
   }
 
   function setPlayState(isPlaying) {
+    isPlayingAudio = isPlaying;
     if (isPlaying) {
       playIcon.style.display = "none";
       pauseIcon.style.display = "block";
@@ -974,25 +929,43 @@
     }
   }
 
+  // Native Android callbacks
+  window.onNativePlayState = function(playing) {
+    setPlayState(playing);
+  };
+
+  window.updatePlayerProgress = function(curMs, durMs) {
+    if (isScrubbing || activeIndex === -1) return;
+    if (durMs > 0) currentAudioDurationMs = durMs;
+
+    const curSec = Math.floor(curMs / 1000);
+    const durSec = Math.floor(durMs / 1000);
+
+    currentTimeDisplay.innerText = formatSeconds(curSec);
+    totalDurationDisplay.innerText = formatSeconds(durSec);
+
+    if (durMs > 0) {
+      const pct = Math.min(100, Math.max(0, (curMs / durMs) * 100));
+      progressBar.style.width = pct + "%";
+      scrubThumb.style.left = pct + "%";
+    }
+  };
+
   function stepAudio(seconds) {
     if (activeIndex === -1) return;
     if (window.NativeAudioBridge) {
       window.NativeAudioBridge.seekDelta(seconds * 1000);
-      return;
     }
-    coreAudio.currentTime = Math.max(0, Math.min(coreAudio.duration || 0, coreAudio.currentTime + seconds));
   }
 
   function changeVolume(val) {
-    coreAudio.volume = parseFloat(val);
+    // Handled by device media hardware buttons
   }
 
   function cyclePlaybackSpeed() {
     if (activeIndex === -1) return;
     currentSpeedIndex = (currentSpeedIndex + 1) % speedOptions.length;
-    const newRate = speedOptions[currentSpeedIndex];
-    speedLabel.innerText = `${newRate}x`;
-    coreAudio.playbackRate = newRate;
+    speedLabel.innerText = `${speedOptions[currentSpeedIndex]}x`;
   }
 
   function sweepToNextHour() {
@@ -1001,60 +974,12 @@
     }
   }
 
-  coreAudio.addEventListener("ended", () => {
-    if (activeIndex >= 0 && activeIndex < hourBlocks.length - 1) {
-      playArchive(activeIndex + 1);
-    }
-  });
-
   function formatSeconds(sec) {
     if (isNaN(sec) || !isFinite(sec)) return "00:00";
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
   }
-
-  coreAudio.addEventListener("timeupdate", () => {
-    if (isScrubbing) return;
-    if (activeIndex === -1) {
-      currentTimeDisplay.innerText = "00:00";
-      totalDurationDisplay.innerText = "LIVE";
-      progressBar.style.width = "100%";
-      scrubThumb.style.left = "100%";
-      return;
-    }
-
-    const cur = coreAudio.currentTime || 0;
-    const dur = coreAudio.duration || 0;
-    currentTimeDisplay.innerText = formatSeconds(cur);
-    totalDurationDisplay.innerText = formatSeconds(dur);
-
-    if (dur > 0) {
-      const pct = (cur / dur) * 100;
-      progressBar.style.width = `${pct}%`;
-      scrubThumb.style.left = `${pct}%`;
-    }
-  });
-
-  coreAudio.addEventListener("progress", () => {
-    if (activeIndex !== -1 && coreAudio.buffered.length > 0 && coreAudio.duration) {
-      const end = coreAudio.buffered.end(coreAudio.buffered.length - 1);
-      const bufPct = (end / coreAudio.duration) * 100;
-      bufferBar.style.width = `${Math.min(100, bufPct)}%`;
-    }
-  });
-
-  coreAudio.addEventListener("play", () => setPlayState(true));
-  coreAudio.addEventListener("pause", () => setPlayState(false));
-
-  coreAudio.addEventListener("error", () => {
-    if (activeIndex >= 0) {
-      const chosenDate = dateInput.value;
-      toastMessage.innerText = `Recording not found (${chosenDate}_${hourBlocks[activeIndex].file}). It may still be recording or expired.`;
-      toastAlert.style.display = "flex";
-      setPlayState(false);
-    }
-  });
 
   function clearTimelineHighlights() {
     document.querySelectorAll(".slot-card").forEach(c => c.classList.remove("active"));
@@ -1093,35 +1018,40 @@
     if (activeIndex >= 0) playArchive(activeIndex);
   }
 
+  // Interactive Touch Scrubber
   let isScrubbing = false;
 
   function handleScrubPointer(e) {
-    if (activeIndex === -1 || !coreAudio.duration) return;
+    if (activeIndex === -1) return 0;
     const rect = ytScrubContainer.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const targetSec = fraction * coreAudio.duration;
+    const targetMs = fraction * currentAudioDurationMs;
 
     progressBar.style.width = `${fraction * 100}%`;
     scrubThumb.style.left = `${fraction * 100}%`;
     scrubTooltip.style.display = "block";
     scrubTooltip.style.left = `${fraction * 100}%`;
-    scrubTooltip.innerText = formatSeconds(targetSec);
-    return targetSec;
+    scrubTooltip.innerText = formatSeconds(Math.floor(targetMs / 1000));
+    return targetMs;
   }
 
   ytScrubContainer.addEventListener("pointerdown", (e) => {
-    if (activeIndex === -1 || !coreAudio.duration) return;
+    if (activeIndex === -1) return;
     isScrubbing = true;
     ytScrubContainer.classList.add("is-scrubbing");
-    const targetSec = handleScrubPointer(e);
-    coreAudio.currentTime = targetSec;
+    const targetMs = handleScrubPointer(e);
+    if (window.NativeAudioBridge) {
+      window.NativeAudioBridge.seekTo(Math.round(targetMs));
+    }
   });
 
   window.addEventListener("pointermove", (e) => {
     if (!isScrubbing) return;
-    const targetSec = handleScrubPointer(e);
-    coreAudio.currentTime = targetSec;
+    const targetMs = handleScrubPointer(e);
+    if (window.NativeAudioBridge) {
+      window.NativeAudioBridge.seekTo(Math.round(targetMs));
+    }
   });
 
   window.addEventListener("pointerup", () => {
@@ -1132,68 +1062,7 @@
     }
   });
 
-  const touchDeckScreen = document.getElementById("touchDeckScreen");
-  let screenTouchStartX = 0;
-  let screenTouchStartTime = 0;
-  let isScreenDragging = false;
-
-  touchDeckScreen.addEventListener("touchstart", (e) => {
-    if (activeIndex === -1 || !coreAudio.duration) return;
-    screenTouchStartX = e.touches[0].clientX;
-    screenTouchStartTime = coreAudio.currentTime;
-    isScreenDragging = true;
-  }, { passive: true });
-
-  touchDeckScreen.addEventListener("touchmove", (e) => {
-    if (!isScreenDragging || activeIndex === -1 || !coreAudio.duration) return;
-    const deltaX = e.touches[0].clientX - screenTouchStartX;
-    const deltaSeconds = (deltaX / 150) * 60;
-    const newTime = Math.max(0, Math.min(coreAudio.duration, screenTouchStartTime + deltaSeconds));
-    coreAudio.currentTime = newTime;
-
-    scrubTooltip.style.display = "block";
-    const fraction = (newTime / coreAudio.duration) * 100;
-    scrubTooltip.style.left = `${fraction}%`;
-    scrubTooltip.innerText = `${deltaX > 0 ? '+' : ''}${Math.round(deltaSeconds)}s (${formatSeconds(newTime)})`;
-  }, { passive: true });
-
-  touchDeckScreen.addEventListener("touchend", () => {
-    isScreenDragging = false;
-    scrubTooltip.style.display = "none";
-  });
-
-  let lastTapLeft = 0;
-  let lastTapRight = 0;
-  const rippleLeft = document.getElementById("rippleLeft");
-  const rippleRight = document.getElementById("rippleRight");
-
-  function triggerRipple(elem) {
-    elem.classList.add("show");
-    setTimeout(() => elem.classList.remove("show"), 320);
-  }
-
-  document.getElementById("skipHalfLeft").addEventListener("click", () => {
-    const nowTime = Date.now();
-    if (nowTime - lastTapLeft < 300) {
-      stepAudio(-10);
-      triggerRipple(rippleLeft);
-      lastTapLeft = 0;
-    } else {
-      lastTapLeft = nowTime;
-    }
-  });
-
-  document.getElementById("skipHalfRight").addEventListener("click", () => {
-    const nowTime = Date.now();
-    if (nowTime - lastTapRight < 300) {
-      stepAudio(10);
-      triggerRipple(rippleRight);
-      lastTapRight = 0;
-    } else {
-      lastTapRight = nowTime;
-    }
-  });
-
+  // Canvas visualizer animation
   function resizeCanvas() {
     canvas.width = canvas.parentElement.clientWidth;
     canvas.height = canvas.parentElement.clientHeight;
@@ -1206,7 +1075,7 @@
     requestAnimationFrame(drawVisualizer);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const isPlaying = isNativePlaying || (!coreAudio.paused && coreAudio.currentTime > 0);
+    const isPlaying = isPlayingAudio;
     const barCount = 32;
     const gap = 3;
     const barWidth = (canvas.width - gap * (barCount - 1)) / barCount;
@@ -1242,7 +1111,7 @@
   }
   drawVisualizer();
 
-  // Boot into Live Stream
+  // Initialize playback
   switchToLiveMode();
 </script>
 </body>
