@@ -1,73 +1,58 @@
-name: Build Pure Native Dual-Audio Radio APK
+name: Build Dual Audio Radio APK
 
 on:
   workflow_dispatch:
 
 jobs:
-  build_native:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Accept Android SDK Licenses
+      - name: Build App Project
         run: |
-          yes | sdkmanager --licenses || true
-
-      - name: Scaffold Complete Native Project
-        run: |
-          mkdir -p native_app/app/src/main/java/com/sagarrawatssr/airfm
+          mkdir -p native_app/app/src/main/java/com/sagar/airfm
           mkdir -p native_app/app/src/main/res/layout
           mkdir -p native_app/app/src/main/res/values
-          mkdir -p native_app/app/src/main/res/drawable
 
-          # 1. Project-level build.gradle
+          # Fixed: File created directly in project root
+          cat << 'EOF' > native_app/gradle.properties
+          android.useAndroidX=true
+          android.enableJetifier=true
+          EOF
+
+          # Root build.gradle
           cat << 'EOF' > native_app/build.gradle
           buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.2.2'
-              }
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.2.2' }
           }
           allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
+              repositories { google(); mavenCentral() }
           }
           EOF
 
-          # 2. settings.gradle
           echo "include ':app'" > native_app/settings.gradle
 
-          # 3. app/build.gradle with AndroidX Media3 / ExoPlayer
+          # App build.gradle
           cat << 'EOF' > native_app/app/build.gradle
-          plugins {
-              id 'com.android.application'
-          }
+          plugins { id 'com.android.application' }
           android {
-              namespace 'com.sagarrawatssr.airfm'
+              namespace 'com.sagar.airfm'
               compileSdk 34
               defaultConfig {
-                  applicationId "com.sagarrawatssr.airfm"
+                  applicationId "com.sagar.airfm"
                   minSdk 26
                   targetSdk 34
                   versionCode 1
                   versionName "1.0"
-              }
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                  }
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
@@ -75,33 +60,25 @@ jobs:
               }
           }
           dependencies {
-              implementation 'androidx.core:core:1.12.0'
-              implementation 'androidx.media:media:1.7.0'
               implementation 'androidx.media3:media3-exoplayer:1.2.1'
               implementation 'androidx.media3:media3-exoplayer-hls:1.2.1'
-              implementation 'androidx.media3:media3-ui:1.2.1'
+              implementation 'androidx.core:core:1.12.0'
           }
           EOF
 
-          # 4. AndroidManifest.xml
+          # AndroidManifest.xml
           cat << 'EOF' > native_app/app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission android:name="android.permission.WAKE_LOCK" />
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
               <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
               <application
-                  android:allowBackup="true"
                   android:label="AIR FM Rainbow"
                   android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
                   android:usesCleartextTraffic="true">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:configChanges="orientation|screenSize">
+                  <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -109,57 +86,41 @@ jobs:
                   </activity>
                   <service
                       android:name=".RadioService"
-                      android:enabled="true"
-                      android:exported="false"
-                      android:foregroundServiceType="mediaPlayback" />
+                      android:foregroundServiceType="mediaPlayback"
+                      android:exported="false" />
               </application>
           </manifest>
           EOF
 
-          # 5. Clean Modern Native Layout (layout/activity_main.xml)
+          # UI Layout
           cat << 'EOF' > native_app/app/src/main/res/layout/activity_main.xml
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
-              android:orientation="vertical"
               android:gravity="center"
-              android:background="#0b0f19"
-              android:padding="24dp">
-
+              android:orientation="vertical"
+              android:background="#121212">
               <TextView
                   android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
-                  android:text="AIR FM RAINBOW"
-                  android:textColor="#ffffff"
-                  android:textSize="26sp"
+                  android:text="AIR FM Rainbow 102.6"
+                  android:textColor="#FFFFFF"
+                  android:textSize="22sp"
                   android:textStyle="bold" />
-
-              <TextView
-                  android:id="@+id/txt_status"
-                  android:layout_width="wrap_content"
-                  android:layout_height="wrap_content"
-                  android:layout_marginTop="8dp"
-                  android:text="102.6 MHz Delhi • Concurrent Audio Active"
-                  android:textColor="#94a3b8"
-                  android:textSize="14sp" />
-
               <Button
-                  android:id="@+id/btn_play"
-                  android:layout_width="220dp"
-                  android:layout_height="65dp"
-                  android:layout_marginTop="40dp"
-                  android:text="Play Broadcast"
-                  android:textSize="18sp"
-                  android:textStyle="bold"
-                  android:textColor="#000000"
-                  android:backgroundTint="#38bdf8" />
+                  android:id="@+id/btnPlay"
+                  android:layout_width="200dp"
+                  android:layout_height="60dp"
+                  android:layout_marginTop="30dp"
+                  android:text="Play / Pause"
+                  android:textSize="18sp" />
           </LinearLayout>
           EOF
 
-          # 6. RadioService.java (Native Foreground Service + Audio Focus Bypass + Notification)
-          cat << 'EOF' > native_app/app/src/main/java/com/sagarrawatssr/airfm/RadioService.java
-          package com.sagarrawatssr.airfm;
+          # Service with ExoPlayer (No Audio Focus = Dual Audio with YouTube)
+          cat << 'EOF' > native_app/app/src/main/java/com/sagar/airfm/RadioService.java
+          package com.sagar.airfm;
 
           import android.app.Notification;
           import android.app.NotificationChannel;
@@ -167,171 +128,87 @@ jobs:
           import android.app.PendingIntent;
           import android.app.Service;
           import android.content.Intent;
-          import android.media.AudioAttributes;
-          import android.media.AudioFocusRequest;
-          import android.media.AudioManager;
           import android.os.Binder;
           import android.os.Build;
           import android.os.IBinder;
           import androidx.core.app.NotificationCompat;
-          import androidx.media3.common.AudioAttributes as ExoAudioAttrs;
-          import androidx.media3.common.C;
           import androidx.media3.common.MediaItem;
           import androidx.media3.exoplayer.ExoPlayer;
 
           public class RadioService extends Service {
-              public static final String CHANNEL_ID = "air_fm_player_channel";
-              public static final String ACTION_TOGGLE = "com.sagarrawatssr.airfm.ACTION_TOGGLE";
-              private static final String STREAM_URL = "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8";
-
               private ExoPlayer player;
-              private AudioManager audioManager;
               private final IBinder binder = new LocalBinder();
+              private static final String STREAM = "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8";
 
               public class LocalBinder extends Binder {
-                  public RadioService getService() {
-                      return RadioService.this;
-                  }
+                  public RadioService getService() { return RadioService.this; }
               }
 
               @Override
               public void onCreate() {
                   super.onCreate();
-                  bypassAudioFocus();
-                  createNotificationChannel();
+                  createChannel();
 
-                  // Setup native ExoPlayer configured for parallel concurrent playback
+                  // Set up native player without internal focus takeover
                   player = new ExoPlayer.Builder(this).build();
-                  
-                  // Disable ExoPlayer's internal audio focus management completely
-                  player.setAudioAttributes(
-                      new ExoAudioAttrs.Builder()
-                          .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                          .setUsage(C.USAGE_MEDIA)
-                          .build(),
-                      false // false = DO NOT handle audio focus internally
-                  );
-
-                  MediaItem mediaItem = MediaItem.fromUri(STREAM_URL);
-                  player.setMediaItem(mediaItem);
+                  MediaItem item = MediaItem.fromUri(STREAM);
+                  player.setMediaItem(item);
                   player.prepare();
 
-                  startForeground(101, createNotification(false));
+                  startForeground(1, getNotification("Ready to play"));
               }
 
-              private void bypassAudioFocus() {
-                  audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
-                  if (audioManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                      AudioAttributes attrs = new AudioAttributes.Builder()
-                              .setUsage(AudioAttributes.USAGE_MEDIA)
-                              .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                              .build();
-
-                      AudioFocusRequest request = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                              .setAudioAttributes(attrs)
-                              .setAcceptsDelayedFocusGain(false)
-                              .setWillPauseWhenDucked(false)
-                              .setOnAudioFocusChangeListener(focusChange -> {
-                                  // IGNORE ALL FOCUS LOSS: Keeps playing when YouTube / other apps start
-                              })
-                              .build();
-                      audioManager.requestAudioFocus(request);
+              public void toggle() {
+                  if (player.isPlaying()) {
+                      player.pause();
+                      updateNotif("Paused");
+                  } else {
+                      player.play();
+                      updateNotif("Playing (Dual Audio Active)");
                   }
               }
 
-              public void togglePlayback() {
-                  if (player != null) {
-                      if (player.isPlaying()) {
-                          player.pause();
-                          updateNotification(false);
-                      } else {
-                          player.play();
-                          updateNotification(true);
-                      }
-                  }
-              }
-
-              public boolean isPlaying() {
-                  return player != null && player.isPlaying();
-              }
-
-              private void updateNotification(boolean isPlaying) {
+              private void updateNotif(String text) {
                   NotificationManager nm = getSystemService(NotificationManager.class);
-                  if (nm != null) {
-                      nm.notify(101, createNotification(isPlaying));
-                  }
+                  if (nm != null) nm.notify(1, getNotification(text));
               }
 
-              private Notification createNotification(boolean isPlaying) {
-                  Intent openIntent = new Intent(this, MainActivity.class);
-                  PendingIntent pOpen = PendingIntent.getActivity(
-                          this, 0, openIntent,
-                          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                  );
-
-                  Intent toggleIntent = new Intent(this, RadioService.class);
-                  toggleIntent.setAction(ACTION_TOGGLE);
-                  PendingIntent pToggle = PendingIntent.getService(
-                          this, 1, toggleIntent,
-                          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                  );
-
-                  int actionIcon = isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
-                  String actionText = isPlaying ? "Pause" : "Play";
-
-                  return new NotificationCompat.Builder(this, CHANNEL_ID)
-                          .setContentTitle("AIR FM Rainbow (102.6 MHz)")
-                          .setContentText(isPlaying ? "Live Broadcast Playing" : "Paused")
-                          .setSmallIcon(android.R.drawable.ic_lock_idle_charging)
-                          .setContentIntent(pOpen)
-                          .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                          .setOngoing(isPlaying)
-                          .addAction(actionIcon, actionText, pToggle)
-                          .setStyle(new androidx.media.app.NotificationCompat.MediaStyle().setShowActionsInCompactView(0))
+              private Notification getNotification(String text) {
+                  Intent intent = new Intent(this, MainActivity.class);
+                  PendingIntent pi = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE);
+                  return new NotificationCompat.Builder(this, "radio")
+                          .setContentTitle("AIR FM Rainbow")
+                          .setContentText(text)
+                          .setSmallIcon(android.R.drawable.ic_media_play)
+                          .setContentIntent(pi)
+                          .setOngoing(player != null && player.isPlaying())
                           .build();
               }
 
-              private void createNotificationChannel() {
+              private void createChannel() {
                   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                      NotificationChannel channel = new NotificationChannel(
-                              CHANNEL_ID,
-                              "Live Radio Playback",
-                              NotificationManager.IMPORTANCE_LOW
-                      );
-                      channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-                      NotificationManager nm = getSystemService(NotificationManager.class);
-                      if (nm != null) {
-                          nm.createNotificationChannel(channel);
-                      }
+                      NotificationChannel ch = new NotificationChannel("radio", "Radio", NotificationManager.IMPORTANCE_LOW);
+                      getSystemService(NotificationManager.class).createNotificationChannel(ch);
                   }
               }
 
               @Override
-              public int onStartCommand(Intent intent, int flags, int startId) {
-                  if (intent != null && ACTION_TOGGLE.equals(intent.getAction())) {
-                      togglePlayback();
-                  }
-                  return START_STICKY;
-              }
+              public int onStartCommand(Intent intent, int flags, int startId) { return START_STICKY; }
 
               @Override
               public void onDestroy() {
+                  if (player != null) player.release();
                   super.onDestroy();
-                  if (player != null) {
-                      player.release();
-                  }
               }
 
               @Override
-              public IBinder onBind(Intent intent) {
-                  return binder;
-              }
+              public IBinder onBind(Intent intent) { return binder; }
           }
           EOF
 
-          # 7. MainActivity.java (Connects UI to RadioService)
-          cat << 'EOF' > native_app/app/src/main/java/com/sagarrawatssr/airfm/MainActivity.java
-          package com.sagarrawatssr.airfm;
+          # MainActivity.java
+          cat << 'EOF' > native_app/app/src/main/java/com/sagar/airfm/MainActivity.java
+          package com.sagar.airfm;
 
           import android.Manifest;
           import android.app.Activity;
@@ -344,26 +221,19 @@ jobs:
           import android.os.Bundle;
           import android.os.IBinder;
           import android.widget.Button;
-          import android.widget.TextView;
 
           public class MainActivity extends Activity {
-              private RadioService radioService;
-              private boolean isBound = false;
-              private Button btnPlay;
-              private TextView txtStatus;
+              private RadioService service;
+              private boolean bound = false;
 
-              private final ServiceConnection connection = new ServiceConnection() {
+              private final ServiceConnection conn = new ServiceConnection() {
                   @Override
-                  public void onServiceConnected(ComponentName name, IBinder binder) {
-                      radioService = ((RadioService.LocalBinder) binder).getService();
-                      isBound = true;
-                      updateButtonState();
+                  public void onServiceConnected(ComponentName name, IBinder b) {
+                      service = ((RadioService.LocalBinder) b).getService();
+                      bound = true;
                   }
-
                   @Override
-                  public void onServiceDisconnected(ComponentName name) {
-                      isBound = false;
-                  }
+                  public void onServiceDisconnected(ComponentName name) { bound = false; }
               };
 
               @Override
@@ -371,67 +241,38 @@ jobs:
                   super.onCreate(savedInstanceState);
                   setContentView(R.layout.activity_main);
 
-                  btnPlay = findViewById(R.id.btn_play);
-                  txtStatus = findViewById(R.id.txt_status);
-
                   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                       if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                          requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 101);
+                          requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
                       }
                   }
 
-                  Intent serviceIntent = new Intent(this, RadioService.class);
-                  startForegroundService(serviceIntent);
-                  bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE);
+                  Intent intent = new Intent(this, RadioService.class);
+                  startForegroundService(intent);
+                  bindService(intent, conn, Context.BIND_AUTO_CREATE);
 
-                  btnPlay.setOnClickListener(v -> {
-                      if (isBound && radioService != null) {
-                          radioService.togglePlayback();
-                          updateButtonState();
-                      }
+                  Button btn = findViewById(R.id.btnPlay);
+                  btn.setOnClickListener(v -> {
+                      if (bound && service != null) service.toggle();
                   });
-              }
-
-              private void updateButtonState() {
-                  if (radioService != null && radioService.isPlaying()) {
-                      btnPlay.setText("Pause Broadcast");
-                      txtStatus.setText("Status: Playing (Parallel Audio Active)");
-                  } else {
-                      btnPlay.setText("Play Broadcast");
-                      txtStatus.setText("Status: Paused");
-                  }
-              }
-
-              @Override
-              protected void onResume() {
-                  super.onResume();
-                  updateButtonState();
               }
 
               @Override
               protected void onDestroy() {
+                  if (bound) unbindService(conn);
                   super.onDestroy();
-                  if (isBound) {
-                      unbindService(connection);
-                      isBound = false;
-                  }
               }
           }
           EOF
 
-      - name: Setup Gradle 8.4 Wrapper
+      - name: Build APK
         run: |
           cd native_app
           gradle wrapper --gradle-version 8.4
-
-      - name: Build Native APK
-        run: |
-          cd native_app
-          echo "android.useAndroidX=true" > native_app/gradle.properties
           ./gradlew assembleDebug --no-daemon
 
-      - name: Upload Clean APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AIR-FM-Rainbow-Native-APK
+          name: Dual-Audio-AIR-FM-APK
           path: native_app/app/build/outputs/apk/debug/*.apk
