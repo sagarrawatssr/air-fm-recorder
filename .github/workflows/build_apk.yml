@@ -22,7 +22,6 @@ jobs:
           mkdir -p native_app/app/src/main/res/values
           mkdir -p native_app/app/src/main/assets
 
-          # Copy index.html into assets
           cp index.html native_app/app/src/main/assets/index.html
 
           # 1. gradle.properties
@@ -35,7 +34,7 @@ jobs:
           cat << 'EOF' > native_app/build.gradle
           buildscript {
               repositories { google(); mavenCentral() }
-              dependencies { classpath 'com.android.tools.build:gradle:8.2.2' }
+              dependencies { classpath 'com.android.tools.build:gradle:8.4.1' }
           }
           allprojects {
               repositories { google(); mavenCentral() }
@@ -44,7 +43,7 @@ jobs:
 
           echo "include ':app'" > native_app/settings.gradle
 
-          # 3. App build.gradle
+          # 3. App build.gradle (Targeting Android 14/15 SDK 34/35 compatible)
           cat << 'EOF' > native_app/app/build.gradle
           plugins { id 'com.android.application' }
           android {
@@ -63,19 +62,19 @@ jobs:
               }
           }
           dependencies {
-              implementation 'androidx.media3:media3-exoplayer:1.2.1'
-              implementation 'androidx.media3:media3-exoplayer-hls:1.2.1'
-              implementation 'androidx.core:core:1.12.0'
+              implementation 'androidx.media3:media3-exoplayer:1.3.1'
+              implementation 'androidx.media3:media3-exoplayer-hls:1.3.1'
+              implementation 'androidx.media3:media3-session:1.3.1'
+              implementation 'androidx.core:core:1.13.1'
               implementation 'androidx.media:media:1.7.0'
           }
           EOF
 
-          # 4. AndroidManifest.xml (Registers Broadcast Receiver for notification buttons)
+          # 4. AndroidManifest.xml
           cat << 'EOF' > native_app/app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission android:name="android.permission.WAKE_LOCK" />
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
               <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -93,37 +92,11 @@ jobs:
                       android:name=".RadioService"
                       android:foregroundServiceType="mediaPlayback"
                       android:exported="false" />
-                  <receiver android:name=".MediaNotificationReceiver" android:exported="false" />
               </application>
           </manifest>
           EOF
 
-          # 5. MediaNotificationReceiver.java (Guaranteed notification button clicks)
-          cat << 'EOF' > native_app/app/src/main/java/com/sagar/airfm/MediaNotificationReceiver.java
-          package com.sagar.airfm;
-
-          import android.content.BroadcastReceiver;
-          import android.content.Context;
-          import android.content.Intent;
-
-          public class MediaNotificationReceiver extends BroadcastReceiver {
-              @Override
-              public void onReceive(Context context, Intent intent) {
-                  if (RadioService.instance != null) {
-                      String action = intent.getAction();
-                      if ("ACTION_TOGGLE".equals(action)) {
-                          RadioService.instance.toggle();
-                      } else if ("ACTION_SEEK_BACK".equals(action)) {
-                          RadioService.instance.seekDelta(-10000);
-                      } else if ("ACTION_SEEK_FWD".equals(action)) {
-                          RadioService.instance.seekDelta(10000);
-                      }
-                  }
-              }
-          }
-          EOF
-
-          # 6. RadioService.java (Full MediaSession + Progress synchronization loop)
+          # 5. RadioService.java (Android 15 Compliant MediaStyle with PlaybackState Sync)
           cat << 'EOF' > native_app/app/src/main/java/com/sagar/airfm/RadioService.java
           package com.sagar.airfm;
 
@@ -147,69 +120,64 @@ jobs:
           import androidx.media3.exoplayer.ExoPlayer;
 
           public class RadioService extends Service {
-              public static RadioService instance;
+              public static final String ACTION_TOGGLE = "com.sagar.airfm.ACTION_TOGGLE";
               private ExoPlayer player;
               private MediaSessionCompat mediaSession;
-              private String currentTitle = "AIR FM Rainbow 102.6 MHz";
+              private String currentTitle = "AIR FM Rainbow 102.6";
               private String currentSub = "Live Broadcast";
               private final IBinder binder = new LocalBinder();
-              private final Handler progressHandler = new Handler(Looper.getMainLooper());
-              private MainActivity mainActivity;
+              private final Handler timeHandler = new Handler(Looper.getMainLooper());
+              private ProgressCallback progressCallback;
+
+              public interface ProgressCallback {
+                  void onProgress(long currentMs, long durationMs, boolean isPlaying);
+              }
 
               public class LocalBinder extends Binder {
                   public RadioService getService() { return RadioService.this; }
               }
 
-              public void registerActivity(MainActivity activity) {
-                  this.mainActivity = activity;
+              public void setProgressCallback(ProgressCallback callback) {
+                  this.progressCallback = callback;
               }
 
               @Override
               public void onCreate() {
                   super.onCreate();
-                  instance = this;
                   createChannel();
 
-                  mediaSession = new MediaSessionCompat(this, "AirFmAudioSession");
+                  mediaSession = new MediaSessionCompat(this, "AirFmMediaSession");
                   mediaSession.setCallback(new MediaSessionCompat.Callback() {
                       @Override
                       public void onPlay() { toggle(); }
                       @Override
                       public void onPause() { toggle(); }
-                      @Override
-                      public void onSeekTo(long pos) {
-                          if (player != null) player.seekTo(pos);
-                      }
                   });
                   mediaSession.setActive(true);
 
-                  // ExoPlayer without internal audio focus constraints (Dual Audio)
                   player = new ExoPlayer.Builder(this).build();
                   player.addListener(new Player.Listener() {
                       @Override
                       public void onIsPlayingChanged(boolean isPlaying) {
+                          updatePlaybackState(isPlaying);
                           updateNotification(isPlaying);
-                          if (mainActivity != null) {
-                              mainActivity.notifyPlayStateToWeb(isPlaying);
-                          }
                       }
                   });
 
                   startForeground(101, buildMediaNotification(false));
-                  startProgressTicker();
+                  startTimeLoop();
               }
 
-              private void startProgressTicker() {
-                  progressHandler.postDelayed(new Runnable() {
+              private void startTimeLoop() {
+                  timeHandler.postDelayed(new Runnable() {
                       @Override
                       public void run() {
-                          if (player != null && player.isPlaying() && mainActivity != null) {
+                          if (player != null && progressCallback != null) {
                               long cur = player.getCurrentPosition();
                               long dur = player.getDuration();
-                              if (dur < 0) dur = 0;
-                              mainActivity.sendProgressToWeb(cur, dur);
+                              progressCallback.onProgress(cur, dur, player.isPlaying());
                           }
-                          progressHandler.postDelayed(this, 500);
+                          timeHandler.postDelayed(this, 500);
                       }
                   }, 500);
               }
@@ -217,13 +185,18 @@ jobs:
               public void playUrl(String streamUrl, String title, String sub) {
                   this.currentTitle = (title != null && !title.isEmpty()) ? title : "AIR FM Rainbow";
                   this.currentSub = (sub != null && !sub.isEmpty()) ? sub : "Broadcast";
+
+                  mediaSession.setMetadata(new MediaMetadataCompat.Builder()
+                          .putString(MediaMetadataCompat.METADATA_KEY_TITLE, currentTitle)
+                          .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, currentSub)
+                          .build());
+
                   if (player != null) {
                       player.stop();
                       player.clearMediaItems();
                       player.setMediaItem(MediaItem.fromUri(streamUrl));
                       player.prepare();
                       player.play();
-                      updateNotification(true);
                   }
               }
 
@@ -237,39 +210,31 @@ jobs:
                   }
               }
 
-              public void seekDelta(long deltaMs) {
-                  if (player != null) {
-                      long target = Math.max(0, Math.min(player.getDuration(), player.getCurrentPosition() + deltaMs));
-                      player.seekTo(target);
-                  }
-              }
-
               public void seekTo(long targetMs) {
                   if (player != null) {
                       player.seekTo(targetMs);
                   }
               }
 
-              public boolean isPlaying() {
-                  return player != null && player.isPlaying();
+              public void seekDelta(long deltaMs) {
+                  if (player != null) {
+                      long target = Math.max(0, player.getCurrentPosition() + deltaMs);
+                      player.seekTo(target);
+                  }
+              }
+
+              private void updatePlaybackState(boolean isPlaying) {
+                  long actions = PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE |
+                                 PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_SEEK_TO;
+                  int state = isPlaying ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED;
+                  long pos = player != null ? player.getCurrentPosition() : 0;
+                  mediaSession.setPlaybackState(new PlaybackStateCompat.Builder()
+                          .setActions(actions)
+                          .setState(state, pos, 1.0f)
+                          .build());
               }
 
               private void updateNotification(boolean isPlaying) {
-                  long actions = PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE;
-                  int state = isPlaying ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED;
-                  long cur = player != null ? player.getCurrentPosition() : 0;
-
-                  mediaSession.setPlaybackState(new PlaybackStateCompat.Builder()
-                          .setActions(actions)
-                          .setState(state, cur, 1.0f)
-                          .build());
-
-                  mediaSession.setMetadata(new MediaMetadataCompat.Builder()
-                          .putString(MediaMetadataCompat.METADATA_KEY_TITLE, currentTitle)
-                          .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, currentSub)
-                          .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, player != null ? player.getDuration() : 0)
-                          .build());
-
                   NotificationManager nm = getSystemService(NotificationManager.class);
                   if (nm != null) {
                       nm.notify(101, buildMediaNotification(isPlaying));
@@ -282,19 +247,10 @@ jobs:
                           this, 0, openIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
                   );
 
-                  Intent toggleIntent = new Intent(this, MediaNotificationReceiver.class).setAction("ACTION_TOGGLE");
-                  PendingIntent piToggle = PendingIntent.getBroadcast(
-                          this, 1, toggleIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE
-                  );
-
-                  Intent backIntent = new Intent(this, MediaNotificationReceiver.class).setAction("ACTION_SEEK_BACK");
-                  PendingIntent piBack = PendingIntent.getBroadcast(
-                          this, 2, backIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE
-                  );
-
-                  Intent fwdIntent = new Intent(this, MediaNotificationReceiver.class).setAction("ACTION_SEEK_FWD");
-                  PendingIntent piFwd = PendingIntent.getBroadcast(
-                          this, 3, fwdIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE
+                  Intent toggleIntent = new Intent(this, RadioService.class);
+                  toggleIntent.setAction(ACTION_TOGGLE);
+                  PendingIntent piToggle = PendingIntent.getService(
+                          this, 1, toggleIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
                   );
 
                   int actionIcon = isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
@@ -307,12 +263,10 @@ jobs:
                           .setContentIntent(piOpen)
                           .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                           .setOngoing(isPlaying)
-                          .addAction(android.R.drawable.ic_media_rew, "-10s", piBack)
                           .addAction(actionIcon, actionTitle, piToggle)
-                          .addAction(android.R.drawable.ic_media_ff, "+10s", piFwd)
                           .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
                                   .setMediaSession(mediaSession.getSessionToken())
-                                  .setShowActionsInCompactView(1))
+                                  .setShowActionsInCompactView(0))
                           .build();
               }
 
@@ -331,13 +285,15 @@ jobs:
 
               @Override
               public int onStartCommand(Intent intent, int flags, int startId) {
+                  if (intent != null && ACTION_TOGGLE.equals(intent.getAction())) {
+                      toggle();
+                  }
                   return START_STICKY;
               }
 
               @Override
               public void onDestroy() {
-                  instance = null;
-                  progressHandler.removeCallbacksAndMessages(null);
+                  timeHandler.removeCallbacksAndMessages(null);
                   if (player != null) player.release();
                   if (mediaSession != null) mediaSession.release();
                   super.onDestroy();
@@ -348,7 +304,7 @@ jobs:
           }
           EOF
 
-          # 7. MainActivity.java (Bridges two-way communication with WebView)
+          # 6. MainActivity.java (Bridges two-way progress between ExoPlayer and WebView)
           cat << 'EOF' > native_app/app/src/main/java/com/sagar/airfm/MainActivity.java
           package com.sagar.airfm;
 
@@ -377,7 +333,13 @@ jobs:
                   public void onServiceConnected(ComponentName name, IBinder b) {
                       service = ((RadioService.LocalBinder) b).getService();
                       bound = true;
-                      service.registerActivity(MainActivity.this);
+                      service.setProgressCallback((currentMs, durationMs, isPlaying) -> {
+                          runOnUiThread(() -> {
+                              if (webView != null) {
+                                  webView.evaluateJavascript("if(window.onNativeProgressSync) window.onNativeProgressSync(" + currentMs + "," + durationMs + "," + isPlaying + ");", null);
+                              }
+                          });
+                      });
                   }
                   @Override
                   public void onServiceDisconnected(ComponentName name) {
@@ -423,38 +385,22 @@ jobs:
                       }
 
                       @JavascriptInterface
-                      public void seekDelta(long deltaMs) {
+                      public void seekTo(long targetMs) {
                           runOnUiThread(() -> {
-                              if (bound && service != null) service.seekDelta(deltaMs);
+                              if (bound && service != null) service.seekTo(targetMs);
                           });
                       }
 
                       @JavascriptInterface
-                      public void seekTo(long targetMs) {
+                      public void seekDelta(long deltaMs) {
                           runOnUiThread(() -> {
-                              if (bound && service != null) service.seekTo(targetMs);
+                              if (bound && service != null) service.seekDelta(deltaMs);
                           });
                       }
                   }, "NativeAudioBridge");
 
                   webView.setWebViewClient(new WebViewClient());
                   webView.loadUrl("file:///android_asset/index.html");
-              }
-
-              public void sendProgressToWeb(long currentMs, long durationMs) {
-                  runOnUiThread(() -> {
-                      if (webView != null) {
-                          webView.evaluateJavascript("window.updatePlayerProgress && window.updatePlayerProgress(" + currentMs + "," + durationMs + ");", null);
-                      }
-                  });
-              }
-
-              public void notifyPlayStateToWeb(boolean isPlaying) {
-                  runOnUiThread(() -> {
-                      if (webView != null) {
-                          webView.evaluateJavascript("window.onNativePlayState && window.onNativePlayState(" + isPlaying + ");", null);
-                      }
-                  });
               }
 
               @Override
