@@ -427,6 +427,7 @@ jobs:
       - name: Build Native APK
         run: |
           cd native_app
+          echo "android.useAndroidX=true" > native_app/gradle.properties
           ./gradlew assembleDebug --no-daemon
 
       - name: Upload Clean APK
