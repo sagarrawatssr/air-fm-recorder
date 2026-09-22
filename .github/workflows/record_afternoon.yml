@@ -52,9 +52,14 @@ jobs:
             TMP_FILE="output/temp_rec_${i}.mp3"
 
             echo "--- Recording hour chunk $i for $RECORD_SECONDS seconds ($(( RECORD_SECONDS / 60 )) min $(( RECORD_SECONDS % 60 )) sec) ---"
-            ffmpeg -nostdin -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 10 \
-              -rw_timeout 15000000 \
-              -fflags +nobuffer+flush_packets \
+            ffmpeg -nostdin \
+              -reconnect 1 \
+              -reconnect_at_eof 1 \
+              -reconnect_streamed 1 \
+              -reconnect_delay_max 5 \
+              -timeout 30000000 \
+              -err_detect ignore_err \
+              -fflags +nobuffer+flush_packets+discardcorrupt \
               -live_start_index -1 \
               -i "$STREAM_URL" \
               -t "$RECORD_SECONDS" \
