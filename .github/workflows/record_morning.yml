@@ -54,19 +54,76 @@ jobs:
             TMP_FILE="output/temp_rec_${i}.mp3"
 
             echo "--- Recording hour chunk $i for $RECORD_SECONDS seconds ($(( RECORD_SECONDS / 60 )) min $(( RECORD_SECONDS % 60 )) sec) ---"
-            ffmpeg -nostdin \
+            TMP_FINAL="output/temp_final_${i}.mp3"
+            rm -f output/part_${i}_*.mp3 "$TMP_FINAL"
+
+          TARGET_TOTAL="$RECORD_SECONDS"
+          RECORDED_SO_FAR=0
+          PART_NUM=0
+
+          while [ "$RECORDED_SO_FAR" -lt "$TARGET_TOTAL" ]; do
+            REMAINING_SECS=$(( TARGET_TOTAL - RECORDED_SO_FAR ))
+
+            # If remaining time is under 10 seconds, finish the slot
+            if [ "$REMAINING_SECS" -le 10 ]; then
+              break
+            fi
+
+            PART_FILE="output/part_${i}_${PART_NUM}.mp3"
+
+            echo "[Slot $i] Streaming partition $PART_NUM for up to $REMAINING_SECS seconds..."
+
+            ffmpeg -nostdin -y \
               -reconnect 1 \
               -reconnect_at_eof 1 \
               -reconnect_streamed 1 \
               -reconnect_delay_max 5 \
-              -timeout 30000000 \
+              -rw_timeout 15000000 \
               -err_detect ignore_err \
               -fflags +nobuffer+flush_packets+discardcorrupt \
               -live_start_index -1 \
               -i "$STREAM_URL" \
-              -t "$RECORD_SECONDS" \
+              -t "$REMAINING_SECS" \
               -c:a libmp3lame -b:a 64k -ac 1 \
-              "$TMP_FILE" || true
+              "$PART_FILE" || true
+
+            # Check duration of the newly captured slice using ffprobe
+            SLICE_DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$PART_FILE" 2>/dev/null | cut -d. -f1 || echo 0)
+
+            # Fallback estimation if ffprobe cannot read corrupted headers: 64kbps = 8000 bytes/sec
+            if [ -z "$SLICE_DUR" ] || [ "$SLICE_DUR" -le 0 ]; then
+              FILE_BYTES=$(stat -c%s "$PART_FILE" 2>/dev/null || echo 0)
+              SLICE_DUR=$(( FILE_BYTES / 8000 ))
+            fi
+
+            if [ "$SLICE_DUR" -le 5 ]; then
+              echo "Stream unresponsive or segment below 5s. Waiting 5s before reconnecting..."
+              rm -f "$PART_FILE"
+              sleep 5
+            else
+              RECORDED_SO_FAR=$(( RECORDED_SO_FAR + SLICE_DUR ))
+              PART_NUM=$(( PART_NUM + 1 ))
+              echo "[Slot $i] Recorded: $RECORDED_SO_FAR / $TARGET_TOTAL seconds."
+            fi
+          done
+
+          # Merge all recovered segments into the expected output file
+          PART_COUNT=$(ls -1 output/part_${i}_*.mp3 2>/dev/null | wc -l)
+          if [ "$PART_COUNT" -gt 1 ]; then
+            echo "Concatenating $PART_COUNT audio pieces for slot $i..."
+            CONCAT_LIST="output/concat_${i}.txt"
+            rm -f "$CONCAT_LIST"
+            for f in output/part_${i}_*.mp3; do
+              echo "file '$(pwd)/$f'" >> "$CONCAT_LIST"
+            done
+            ffmpeg -y -f concat -safe 0 -i "$CONCAT_LIST" -c copy "$TMP_FILE"
+            rm -f "$CONCAT_LIST" output/part_${i}_*.mp3
+          elif [ "$PART_COUNT" -eq 1 ]; then
+            mv output/part_${i}_0.mp3 "$TMP_FILE"
+          else
+            echo "No audio segments captured for slot $i."
+            continue
+          fi
             # Verify file exists and is not just a tiny fragment (at least 14.5 MB)
             FILE_SIZE=$(stat -c%s "$TMP_FILE" 2>/dev/null || echo 0)
             if [ "$FILE_SIZE" -lt 14000000 ]; then
