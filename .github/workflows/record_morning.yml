@@ -25,6 +25,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p output
+          START_TIME=$(date +%s)
+          MAX_WORKFLOW_SECS=21420
           STREAM_URL="https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
 
           for i in $(seq -w 0 5); do
@@ -49,6 +51,22 @@ jobs:
               RECORD_SECONDS=$(( (60 - MIN + TARGET_MIN) * 60 - SEC ))
             fi
 
+            
+            # 2. Check elapsed time before starting or continuing chunks
+           CURRENT_TIME=$(date +%s)
+           ELAPSED=$(( CURRENT_TIME - START_TIME ))
+           if [ "$ELAPSED" -ge "$MAX_WORKFLOW_SECS" ]; then
+           echo "Workflow running for $(( ELAPSED / 60 )) minutes. Within 3 minutes of 6-hour limit."
+           echo "Saving partial files and breaking loop cleanly..."
+           break
+          fi
+
+          # Calculate safe recording time so FFmpeg itself doesn't exceed the cutoff
+          TIME_REMAINING=$(( MAX_WORKFLOW_SECS - ELAPSED ))
+          if [ "$RECORD_SECONDS" -gt "$TIME_REMAINING" ]; then
+          RECORD_SECONDS=$TIME_REMAINING
+          echo "Shortening slot $i recording to $RECORD_SECONDS seconds to exit before runner timeout."
+          fi
   
 
             TMP_FILE="output/temp_rec_${i}.mp3"
