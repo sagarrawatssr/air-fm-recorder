@@ -83,10 +83,40 @@
 
     .brand-sub { font-size: 0.72rem; color: var(--text-dim); font-weight: 500; }
 
-    .header-right {
+    .header-actions {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 7px;
+    }
+
+    .top-action-pill {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--card-border);
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .top-action-pill:active { transform: scale(0.95); }
+    .top-action-pill.active {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: #60a5fa;
+      color: #93c5fd;
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .top-action-pill svg {
+      width: 13px;
+      height: 13px;
+      fill: currentColor;
     }
 
     .badge-freq {
@@ -98,35 +128,6 @@
       font-size: 0.72rem;
       font-family: 'JetBrains Mono', monospace;
       font-weight: 700;
-    }
-
-    .sleep-timer-btn {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid var(--card-border);
-      color: var(--text-dim);
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      padding: 4px 10px;
-      border-radius: var(--radius-pill);
-      font-size: 0.72rem;
-      font-weight: 700;
-      font-family: 'JetBrains Mono', monospace;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .sleep-timer-btn.active {
-      background: rgba(59, 130, 246, 0.2);
-      border-color: #60a5fa;
-      color: #93c5fd;
-      box-shadow: 0 0 12px var(--accent-glow);
-    }
-
-    .sleep-timer-btn svg {
-      width: 14px;
-      height: 14px;
-      fill: currentColor;
     }
 
     .player-deck {
@@ -300,7 +301,8 @@
     .speed-pill-btn { display: inline-flex; align-items: center; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--card-border); border-radius: var(--radius-pill); padding: 5px 12px; font-size: 0.72rem; font-weight: 700; color: var(--text-dim); cursor: pointer; }
     .speed-pill-btn.locked { opacity: 0.5; cursor: not-allowed; }
 
-    .toast-alert { display: none; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: var(--radius-md); padding: 12px 14px; gap: 10px; align-items: center; }
+    .toast-alert { display: none; background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.5); border-radius: var(--radius-md); padding: 12px 14px; gap: 10px; align-items: center; animation: pulseAlert 0.3s ease-out; }
+    @keyframes pulseAlert { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
     .toast-alert p { font-size: 0.78rem; color: #fca5a5; line-height: 1.35; flex: 1; }
     .toast-alert button { background: #ef4444; border: none; color: #fff; font-size: 0.72rem; font-weight: 700; padding: 6px 12px; border-radius: var(--radius-pill); cursor: pointer; }
 
@@ -324,38 +326,23 @@
     .calendar-step-btn { width: 42px; height: 42px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); color: var(--text-main); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
     .calendar-step-btn:active { background: rgba(255, 255, 255, 0.12); }
 
-    .calendar-input-wrapper {
+    .calendar-display-box {
       flex: 1;
-      display: flex;
-      align-items: center;
+      height: 42px;
       background: rgba(10, 14, 22, 0.85);
       border: 1px solid var(--card-border);
       border-radius: var(--radius-md);
-      padding: 0 10px;
-      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
       cursor: pointer;
-    }
-
-    .calendar-input-wrapper svg {
-      width: 18px;
-      height: 18px;
-      fill: #60a5fa;
-      margin-right: 8px;
-      flex-shrink: 0;
-    }
-
-    input[type="date"] {
-      flex: 1;
-      background: transparent;
-      border: none;
       color: #fff;
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.85rem;
       font-weight: 600;
-      outline: none;
-      cursor: pointer;
-      width: 100%;
     }
+    .calendar-display-box svg { width: 17px; height: 17px; fill: #60a5fa; }
 
     /* 12 Hourly Slices */
     .timeline-container { display: flex; flex-direction: column; gap: 8px; }
@@ -373,81 +360,137 @@
     .slot-time-text { font-size: 0.8rem; font-weight: 700; color: #fff; }
     .slot-desc { font-size: 0.68rem; color: var(--text-dim); }
 
-    /* Bottom Modal: Sleep Timer */
+    /* Material Google Calendar Dialog Modal */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(6px);
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(8px);
       display: none;
-      align-items: flex-end;
+      align-items: center;
       justify-content: center;
       z-index: 9999;
+      padding: 16px;
     }
 
-    .modal-content {
+    .gcal-dialog {
+      width: 100%;
+      max-width: 340px;
+      background: #1f2937;
+      border-radius: 28px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: dialogPop 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+    @keyframes dialogPop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+
+    .gcal-header {
+      padding: 20px 24px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .gcal-subtext { font-size: 0.75rem; color: var(--text-dim); font-weight: 600; text-transform: uppercase; }
+    .gcal-title-date { font-size: 1.55rem; font-weight: 700; color: #fff; }
+
+    .gcal-month-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .gcal-nav-btn { background: transparent; border: none; color: #fff; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .gcal-nav-btn:active { background: rgba(255, 255, 255, 0.1); }
+    .gcal-nav-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+    .gcal-body { padding: 4px 16px 14px; }
+    .gcal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; margin-bottom: 6px; }
+    .gcal-weekday { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; }
+
+    .gcal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .gcal-cell {
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #fff;
+      cursor: pointer;
+    }
+    .gcal-cell.empty { pointer-events: none; }
+    .gcal-cell.disabled { opacity: 0.25; pointer-events: none; }
+    .gcal-cell.today { border: 1.5px solid #60a5fa; }
+    .gcal-cell.selected { background: #3b82f6; color: #fff; font-weight: 800; box-shadow: 0 0 10px rgba(59,130,246,0.6); }
+
+    .gcal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 10px 20px 18px;
+    }
+    .gcal-btn { background: transparent; border: none; color: #60a5fa; font-weight: 700; font-size: 0.85rem; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+    .gcal-btn:active { background: rgba(96, 165, 250, 0.15); }
+
+    /* Sleep Timer Bottom Modal */
+    .sleep-sheet {
       width: 100%;
       max-width: 480px;
       background: #111827;
       border: 1px solid var(--card-border);
-      border-top-left-radius: 20px;
-      border-top-right-radius: 20px;
-      padding: 18px 20px 24px;
+      border-top-left-radius: 24px;
+      border-top-right-radius: 24px;
+      padding: 20px 22px 28px;
       display: flex;
       flex-direction: column;
       gap: 14px;
-      box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.85);
       animation: slideUp 0.22s ease-out;
+      margin-top: auto;
     }
-
     @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .modal-title { font-size: 0.95rem; font-weight: 700; color: #fff; }
-    .close-btn { background: transparent; border: none; color: var(--text-dim); font-size: 1.25rem; cursor: pointer; padding: 4px; }
+    .sheet-head { display: flex; justify-content: space-between; align-items: center; }
+    .sheet-title { font-size: 1rem; font-weight: 700; color: #fff; }
+    .sheet-close { background: transparent; border: none; color: var(--text-dim); font-size: 1.4rem; cursor: pointer; padding: 4px; }
 
-    .timer-options-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-    }
-
-    .timer-opt-btn {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-md);
-      color: #fff;
-      font-size: 0.8rem;
-      font-weight: 700;
-      padding: 12px 6px;
-      cursor: pointer;
-      text-align: center;
-      transition: all 0.15s ease;
-    }
-
+    .timer-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .timer-opt-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); border-radius: var(--radius-md); color: #fff; font-size: 0.82rem; font-weight: 700; padding: 12px 6px; cursor: pointer; text-align: center; }
     .timer-opt-btn:active { transform: scale(0.95); }
-    .timer-opt-btn.active {
-      background: var(--accent);
-      border-color: #60a5fa;
-      box-shadow: 0 0 12px var(--accent-glow);
-    }
 
-    .timer-turn-off-btn {
-      width: 100%;
-      background: rgba(239, 68, 68, 0.15);
-      border: 1px solid rgba(239, 68, 68, 0.4);
-      color: #fca5a5;
-      padding: 10px;
+    .custom-timer-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 8px 12px;
       border-radius: var(--radius-md);
-      font-size: 0.8rem;
-      font-weight: 700;
-      cursor: pointer;
-      text-align: center;
+      border: 1px solid var(--card-border);
     }
+    .custom-timer-row span { font-size: 0.78rem; color: var(--text-dim); font-weight: 600; }
+    .custom-timer-input {
+      flex: 1;
+      height: 38px;
+      background: #090d16;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-align: center;
+      outline: none;
+    }
+    .custom-set-btn { background: var(--accent); border: none; color: #fff; padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; }
+
+    .timer-turn-off-btn { width: 100%; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; padding: 11px; border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 700; cursor: pointer; text-align: center; }
   </style>
 </head>
 <body>
@@ -458,12 +501,20 @@
       <h1 class="brand-title">AIR FM Rainbow</h1>
       <p class="brand-sub">Delhi &bull; Live &amp; 30-Day Archive</p>
     </div>
-    <div class="header-right">
-      <button id="sleepTimerBtn" class="sleep-timer-btn" onclick="openSleepModal()" title="Sleep Timer">
-        <svg viewBox="0 0 24 24"><path d="M12.3 2a10 10 0 0 0-1.9 19.8 10 10 0 0 0 11.5-11.5 10 10 0 0 1-9.6-8.3z"/></svg>
-        <span id="sleepTimerLabel">Off</span>
+    <div class="header-actions">
+      <!-- 1. Daily Cue-Sheet Button -->
+      <button class="top-action-pill" onclick="openCueSheet()" title="View Daily Timetable / Program List">
+        <svg viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+        <span>Schedule</span>
       </button>
-      <span class="badge-freq">102.6 MHz</span>
+
+      <!-- 2. Sleep Timer Button -->
+      <button id="sleepTimerBtn" class="top-action-pill" onclick="openSleepModal()" title="Sleep Timer">
+        <svg viewBox="0 0 24 24"><path d="M12.3 2a10 10 0 0 0-1.9 19.8 10 10 0 0 0 11.5-11.5 10 10 0 0 1-9.6-8.3z"/></svg>
+        <span id="sleepTimerLabel">Timer</span>
+      </button>
+
+      <span class="badge-freq">102.6</span>
     </div>
   </header>
 
@@ -548,12 +599,13 @@
     </div>
   </div>
 
+  <!-- Immediate File Error Notification -->
   <div id="toastAlert" class="toast-alert">
     <p id="toastMessage">Recording not found for this date &amp; hour.</p>
     <button onclick="switchToLiveMode()">Go Live</button>
   </div>
 
-  <!-- Date Stepper with Direct System Calendar Dialog -->
+  <!-- Date Stepper with Google Calendar Material Dialog -->
   <div class="date-panel">
     <div class="quick-chips-row">
       <button class="chip-btn active" id="chipToday" onclick="applyQuickDate(0)">Today</button>
@@ -564,9 +616,9 @@
       <button class="calendar-step-btn" onclick="stepCalendarDay(-1)" title="Previous Day">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
       </button>
-      <div class="calendar-input-wrapper" onclick="triggerNativeDatePicker()">
+      <div class="calendar-display-box" onclick="openCalendarDialog()">
         <svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
-        <input type="date" id="dateInput" onchange="onDateManualChange()">
+        <span id="calendarDateDisplay">25 Sept 2026</span>
       </div>
       <button class="calendar-step-btn" onclick="stepCalendarDay(1)" title="Next Day">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
@@ -585,18 +637,54 @@
     <div class="timeline-track" id="timelineTrack"></div>
   </div>
 
-  <!-- Sleep Timer Bottom Sheet Modal -->
-  <div class="modal-overlay" id="sleepModal" onclick="closeSleepModal(event)">
-    <div class="modal-content" onclick="event.stopPropagation()">
-      <div class="modal-header">
-        <span class="modal-title">🌙 Set Sleep Timer</span>
-        <button class="close-btn" onclick="closeSleepModal()">&times;</button>
+  <!-- Material Google Calendar Modal Dialog -->
+  <div class="modal-overlay" id="calendarModal" onclick="closeCalendarDialog(event)">
+    <div class="gcal-dialog" onclick="event.stopPropagation()">
+      <div class="gcal-header">
+        <span class="gcal-subtext">Select date</span>
+        <div class="gcal-title-date" id="gcalHeaderDate">25 Sept 2026</div>
       </div>
-      <div class="timer-options-grid">
+      <div class="gcal-month-nav">
+        <button class="gcal-nav-btn" onclick="prevCalendarMonth()"><svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
+        <span id="gcalMonthYear">September 2026</span>
+        <button class="gcal-nav-btn" onclick="nextCalendarMonth()"><svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></button>
+      </div>
+      <div class="gcal-body">
+        <div class="gcal-weekdays">
+          <div class="gcal-weekday">M</div>
+          <div class="gcal-weekday">T</div>
+          <div class="gcal-weekday">W</div>
+          <div class="gcal-weekday">T</div>
+          <div class="gcal-weekday">F</div>
+          <div class="gcal-weekday">S</div>
+          <div class="gcal-weekday">S</div>
+        </div>
+        <div class="gcal-grid" id="gcalGrid"></div>
+      </div>
+      <div class="gcal-actions">
+        <button class="gcal-btn" onclick="closeCalendarDialog()">Cancel</button>
+        <button class="gcal-btn" onclick="confirmCalendarDate()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sleep Timer Modal with Custom Timer -->
+  <div class="modal-overlay" id="sleepModal" onclick="closeSleepModal(event)">
+    <div class="sleep-sheet" onclick="event.stopPropagation()">
+      <div class="sheet-head">
+        <span class="sheet-title">🌙 Sleep Timer</span>
+        <button class="sheet-close" onclick="closeSleepModal()">&times;</button>
+      </div>
+      <div class="timer-grid">
         <button class="timer-opt-btn" onclick="setSleepTimer(15)">15m</button>
         <button class="timer-opt-btn" onclick="setSleepTimer(30)">30m</button>
         <button class="timer-opt-btn" onclick="setSleepTimer(45)">45m</button>
         <button class="timer-opt-btn" onclick="setSleepTimer(60)">60m</button>
+      </div>
+      <div class="custom-timer-row">
+        <span>Custom:</span>
+        <input type="number" id="customMinutesInput" class="custom-timer-input" placeholder="Minutes" min="1" max="600" />
+        <button class="custom-set-btn" onclick="setCustomSleepTimer()">Set</button>
       </div>
       <button class="timer-turn-off-btn" onclick="clearSleepTimer()">Turn Off Timer</button>
     </div>
@@ -629,7 +717,6 @@
   const speedLabel = document.getElementById("speedLabel");
   const toastAlert = document.getElementById("toastAlert");
   const toastMessage = document.getElementById("toastMessage");
-  const dateInput = document.getElementById("dateInput");
   const timelineTrack = document.getElementById("timelineTrack");
   const canvas = document.getElementById("visualizerCanvas");
   const ctx = canvas.getContext("2d");
@@ -642,11 +729,9 @@
   let currentDurationSec = 3600;
   let currentPositionSec = 0;
 
-  // 0 = Repeat All (Default), 1 = Repeat 1, 2 = Repeat Off
   let repeatMode = 0;
   let isShuffle = false;
 
-  // Sleep Timer Globals
   let sleepTimerId = null;
   let sleepTargetTimestamp = null;
   let sleepIntervalId = null;
@@ -666,23 +751,159 @@
     { label: "06 - 07 PM", file: "hour_11.mp3" }
   ];
 
+  // Current Calendar Date Setup
   const now = new Date();
   const past30Days = new Date();
   past30Days.setDate(now.getDate() - 30);
   const toYMDString = (date) => date.toISOString().split("T")[0];
 
-  dateInput.max = toYMDString(now);
-  dateInput.min = toYMDString(past30Days);
-  dateInput.value = toYMDString(now);
+  let selectedDate = new Date();
+  let tempDialogDate = new Date();
+  let calendarViewingMonth = new Date().getMonth();
+  let calendarViewingYear = new Date().getFullYear();
 
-  function triggerNativeDatePicker() {
-    if (dateInput.showPicker) {
-      dateInput.showPicker();
-    } else {
-      dateInput.focus();
+  function formatPrettyDate(d) {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
+  function updateDateHeaders() {
+    const formatted = formatPrettyDate(selectedDate);
+    document.getElementById("calendarDateDisplay").innerText = formatted;
+    document.getElementById("gcalHeaderDate").innerText = formatted;
+
+    const todayStr = toYMDString(now);
+    const selStr = toYMDString(selectedDate);
+    const yest = new Date(); yest.setDate(yest.getDate() - 1);
+
+    document.getElementById("chipToday").classList.toggle("active", selStr === todayStr);
+    document.getElementById("chipYesterday").classList.toggle("active", selStr === toYMDString(yest));
+  }
+
+  // 1. Cue-Sheet / Time-Table Integration
+  function openCueSheet() {
+    const dateStr = toYMDString(selectedDate);
+    const cueSheetUrl = `https://cuesheets.prasarbharati.org/su_viewSheetByPb/292/${dateStr}`;
+    window.open(cueSheetUrl, '_blank');
+  }
+
+  // 2. Google Calendar View Dialog
+  function openCalendarDialog() {
+    tempDialogDate = new Date(selectedDate);
+    calendarViewingMonth = selectedDate.getMonth();
+    calendarViewingYear = selectedDate.getFullYear();
+    renderCalendarGrid();
+    document.getElementById("calendarModal").style.display = "flex";
+  }
+
+  function closeCalendarDialog(e) {
+    if (!e || e.target.id === "calendarModal" || e.target.classList.contains("gcal-btn")) {
+      document.getElementById("calendarModal").style.display = "none";
     }
   }
 
+  function prevCalendarMonth() {
+    calendarViewingMonth--;
+    if (calendarViewingMonth < 0) {
+      calendarViewingMonth = 11;
+      calendarViewingYear--;
+    }
+    renderCalendarGrid();
+  }
+
+  function nextCalendarMonth() {
+    calendarViewingMonth++;
+    if (calendarViewingMonth > 11) {
+      calendarViewingMonth = 0;
+      calendarViewingYear++;
+    }
+    renderCalendarGrid();
+  }
+
+  function renderCalendarGrid() {
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    document.getElementById("gcalMonthYear").innerText = `${monthNames[calendarViewingMonth]} ${calendarViewingYear}`;
+
+    const grid = document.getElementById("gcalGrid");
+    grid.innerHTML = "";
+
+    const firstDayIndex = new Date(calendarViewingYear, calendarViewingMonth, 1).getDay();
+    // Monday as index 0
+    const startOffset = (firstDayIndex + 6) % 7;
+    const daysInMonth = new Date(calendarViewingYear, calendarViewingMonth + 1, 0).getDate();
+
+    for (let i = 0; i < startOffset; i++) {
+      const empty = document.createElement("div");
+      empty.className = "gcal-cell empty";
+      grid.appendChild(empty);
+    }
+
+    const todayStr = toYMDString(now);
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const cellDate = new Date(calendarViewingYear, calendarViewingMonth, day);
+      const cellDateStr = toYMDString(cellDate);
+
+      const cell = document.createElement("div");
+      cell.className = "gcal-cell";
+      cell.innerText = day;
+
+      if (cellDateStr === todayStr) cell.classList.add("today");
+      if (cellDateStr === toYMDString(tempDialogDate)) cell.classList.add("selected");
+
+      // Boundaries: only allow within 30-day archive window up to today
+      if (cellDate > now || cellDate < past30Days) {
+        cell.classList.add("disabled");
+      } else {
+        cell.onclick = () => {
+          tempDialogDate = cellDate;
+          document.getElementById("gcalHeaderDate").innerText = formatPrettyDate(tempDialogDate);
+          renderCalendarGrid();
+        };
+      }
+      grid.appendChild(cell);
+    }
+  }
+
+  function confirmCalendarDate() {
+    selectedDate = new Date(tempDialogDate);
+    updateDateHeaders();
+    closeCalendarDialog();
+    if (activeIndex >= 0) playArchive(activeIndex);
+  }
+
+  function applyQuickDate(daysAgo) {
+    const d = new Date();
+    d.setDate(d.getDate() - daysAgo);
+    selectedDate = d;
+    updateDateHeaders();
+    if (activeIndex >= 0) playArchive(activeIndex);
+  }
+
+  function stepCalendarDay(offset) {
+    const cur = new Date(selectedDate);
+    cur.setDate(cur.getDate() + offset);
+    if (cur >= past30Days && cur <= now) {
+      selectedDate = cur;
+      updateDateHeaders();
+      if (activeIndex >= 0) playArchive(activeIndex);
+    }
+  }
+
+  // 3. Audio Error Handler (Immediate File Not Found Display)
+  window.onNativeAudioError = function(errorMsg) {
+    const dateStr = toYMDString(selectedDate);
+    const slot = activeIndex >= 0 ? hourBlocks[activeIndex].label : "Hour";
+    toastMessage.innerText = `Recording not found for ${slot} (${dateStr}). It may still be recording or expired.`;
+    toastAlert.style.display = "flex";
+    setPlayState(false);
+  };
+
+  coreAudio.addEventListener("error", () => {
+    window.onNativeAudioError();
+  });
+
+  // Render Hour Slots
   hourBlocks.forEach((slot, idx) => {
     const card = document.createElement("div");
     card.className = "slot-card";
@@ -781,7 +1002,7 @@
     streamStateLabel.innerText = "Archive Mode";
     sweepNextBtn.disabled = false;
 
-    const chosenDate = dateInput.value;
+    const chosenDate = toYMDString(selectedDate);
     const slot = hourBlocks[index];
 
     trackHeadline.innerText = `FM Rainbow: ${slot.label}`;
@@ -942,40 +1163,7 @@
     document.querySelectorAll(".slot-card").forEach(c => c.classList.remove("active"));
   }
 
-  function applyQuickDate(daysAgo) {
-    const d = new Date();
-    d.setDate(d.getDate() - daysAgo);
-    dateInput.value = toYMDString(d);
-    updateQuickChipStyles();
-    if (activeIndex >= 0) playArchive(activeIndex);
-  }
-
-  function updateQuickChipStyles() {
-    const selected = dateInput.value;
-    const todayStr = toYMDString(now);
-    const yest = new Date(); yest.setDate(yest.getDate() - 1);
-    const yestStr = toYMDString(yest);
-
-    document.getElementById("chipToday").classList.toggle("active", selected === todayStr);
-    document.getElementById("chipYesterday").classList.toggle("active", selected === yestStr);
-  }
-
-  function stepCalendarDay(offset) {
-    const cur = new Date(dateInput.value);
-    cur.setDate(cur.getDate() + offset);
-    if (cur >= past30Days && cur <= now) {
-      dateInput.value = toYMDString(cur);
-      updateQuickChipStyles();
-      if (activeIndex >= 0) playArchive(activeIndex);
-    }
-  }
-
-  function onDateManualChange() {
-    updateQuickChipStyles();
-    if (activeIndex >= 0) playArchive(activeIndex);
-  }
-
-  // Scrub Bar Interactions
+  // Scrub Bar Pointer Interactions
   let isScrubbing = false;
 
   function handleScrubPointer(e) {
@@ -1055,7 +1243,7 @@
     scrubTooltip.style.display = "none";
   });
 
-  // Double Tap Detection for Skip (-10s / +10s)
+  // Double Tap Skip (-10s / +10s)
   let lastTapLeft = 0;
   let lastTapRight = 0;
 
@@ -1085,22 +1273,27 @@
     }
   });
 
-  // Sleep Timer Controller
+  // 4. Sleep Timer with Custom Minute Setting
   function openSleepModal() {
     document.getElementById("sleepModal").style.display = "flex";
   }
 
   function closeSleepModal(e) {
-    if (!e || e.target.id === "sleepModal" || e.target.classList.contains("close-btn")) {
+    if (!e || e.target.id === "sleepModal" || e.target.classList.contains("sheet-close")) {
       document.getElementById("sleepModal").style.display = "none";
+    }
+  }
+
+  function setCustomSleepTimer() {
+    const val = parseInt(document.getElementById("customMinutesInput").value);
+    if (!isNaN(val) && val > 0) {
+      setSleepTimer(val);
     }
   }
 
   function setSleepTimer(minutes) {
     clearSleepTimer();
     const btn = document.getElementById("sleepTimerBtn");
-    const label = document.getElementById("sleepTimerLabel");
-
     sleepTargetTimestamp = Date.now() + (minutes * 60 * 1000);
     btn.classList.add("active");
 
@@ -1140,10 +1333,11 @@
 
     const btn = document.getElementById("sleepTimerBtn");
     btn.classList.remove("active");
-    document.getElementById("sleepTimerLabel").innerText = "Off";
+    document.getElementById("sleepTimerLabel").innerText = "Timer";
     closeSleepModal();
   }
 
+  // Neon Crimson / Coral Gold Visualizer Waves
   function resizeCanvas() {
     canvas.width = canvas.parentElement.clientWidth;
     canvas.height = canvas.parentElement.clientHeight;
@@ -1192,6 +1386,7 @@
   }
   drawVisualizer();
 
+  updateDateHeaders();
   repeatMode = 0;
   updateRepeatUI();
   switchToLiveMode();
