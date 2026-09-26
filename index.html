@@ -227,7 +227,7 @@
     .skip-ripple.show { opacity: 1; transform: scale(1); }
     .skip-ripple span { font-size: 0.75rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: #fff; }
 
-    /* YouTube Style Scrub Bar */
+    /* EXACT PLAYBAR STYLES */
     .yt-scrub-container { position: relative; padding: 10px 0 6px; cursor: pointer; touch-action: none; }
     .yt-scrub-track { position: relative; height: 5px; background: rgba(255, 255, 255, 0.14); border-radius: 4px; transition: height 0.12s ease; }
     .yt-scrub-container:hover .yt-scrub-track, .yt-scrub-container.is-scrubbing .yt-scrub-track { height: 8px; }
@@ -255,7 +255,7 @@
 
     .time-strip { display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-muted); font-weight: 500; margin-top: 2px; }
 
-    /* Action Deck */
+    /* ACTION DECK CONTROLS */
     .deck-action-row { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px; }
     .circle-icon-btn { background: transparent; border: none; color: var(--text-dim); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 8px; border-radius: 50%; transition: all 0.15s ease; position: relative; }
     .circle-icon-btn:active { transform: scale(0.9); color: #fff; }
@@ -361,7 +361,7 @@
     .slot-time-text { font-size: 0.8rem; font-weight: 700; color: #fff; }
     .slot-desc { font-size: 0.68rem; color: var(--text-dim); }
 
-    /* Google Calendar Dialog Modal */
+    /* Modals Backdrop */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -374,6 +374,7 @@
       padding: 16px;
     }
 
+    /* Google Calendar Dialog */
     .gcal-dialog {
       width: 100%;
       max-width: 340px;
@@ -490,8 +491,30 @@
       outline: none;
     }
     .custom-set-btn { background: var(--accent); border: none; color: #fff; padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; }
-
     .timer-turn-off-btn { width: 100%; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; padding: 11px; border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 700; cursor: pointer; text-align: center; }
+
+    /* Time's Up Alert Modal */
+    .timeup-dialog {
+      width: 100%;
+      max-width: 320px;
+      background: #1e293b;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.85);
+      padding: 22px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      text-align: center;
+      animation: dialogPop 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+    .timeup-icon { font-size: 2.2rem; }
+    .timeup-title { font-size: 1.15rem; font-weight: 800; color: #fff; }
+    .timeup-msg { font-size: 0.8rem; color: var(--text-dim); line-height: 1.4; }
+    .timeup-actions { display: flex; gap: 10px; margin-top: 6px; }
+    .timeup-btn { flex: 1; padding: 10px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; cursor: pointer; border: none; }
+    .timeup-btn.primary { background: #3b82f6; color: #fff; }
+    .timeup-btn.secondary { background: rgba(255, 255, 255, 0.08); color: var(--text-dim); }
   </style>
 </head>
 <body>
@@ -546,7 +569,7 @@
       </div>
     </div>
 
-    <!-- EXACT PLAYBAR MARKUP -->
+    <!-- PLAYBAR MARKUP -->
     <div id="ytScrubContainer" class="yt-scrub-container">
       <div id="scrubTooltip" class="scrub-tooltip">00:00</div>
       <div class="yt-scrub-track">
@@ -560,7 +583,7 @@
       </div>
     </div>
 
-    <!-- EXACT ACTION DECK CONTROLS -->
+    <!-- ACTION DECK -->
     <div class="deck-action-row">
       <button class="circle-icon-btn" id="btnShuffle" onclick="toggleShuffle()" title="Shuffle Mode">
         <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
@@ -585,7 +608,7 @@
       </button>
     </div>
 
-    <!-- EXACT VOLUME & SPEED CONTROLS -->
+    <!-- VOLUME & SPEED CONTROLS -->
     <div class="deck-sub-row">
       <div class="volume-box">
         <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
@@ -688,6 +711,19 @@
     </div>
   </div>
 
+  <!-- Time's Up Popup Modal -->
+  <div class="modal-overlay" id="timeUpModal">
+    <div class="timeup-dialog" onclick="event.stopPropagation()">
+      <div class="timeup-icon">⏰</div>
+      <div class="timeup-title">Time's Up!</div>
+      <div class="timeup-msg">The sleep timer has reached zero and radio playback was stopped.</div>
+      <div class="timeup-actions">
+        <button class="timeup-btn secondary" onclick="closeTimeUpModal()">Close</button>
+        <button class="timeup-btn primary" onclick="closeTimeUpModal()">OK</button>
+      </div>
+    </div>
+  </div>
+
   <audio id="coreAudio" playsinline preload="none"></audio>
 </div>
 
@@ -733,8 +769,7 @@
   let repeatMode = 0;
   let isShuffle = false;
 
-  // Sleep Timer State
-  let sleepTimerId = null;
+  // Sleep Timer Globals
   let sleepTargetTimestamp = null;
   let sleepIntervalId = null;
 
@@ -758,7 +793,13 @@
   const now = new Date();
   const past30Days = new Date();
   past30Days.setDate(now.getDate() - 30);
-  const toYMDString = (date) => date.toISOString().split("T")[0];
+
+  function toLocalYMDString(d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 
   let selectedDate = new Date();
   let tempDialogDate = new Date();
@@ -770,48 +811,28 @@
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   }
 
-  
-  function pauseAudio() {
-  if (window.NativeAudioBridge && window.NativeAudioBridge.pause) {
-    window.NativeAudioBridge.pause();
-  } else if (window.NativeAudioBridge) {
-    // Fallback if pause interface isn't bound
-    if (isNativePlaying) window.NativeAudioBridge.toggle();
-  }
-  if (!coreAudio.paused) {
-    coreAudio.pause();
-  }
-  isNativePlaying = false;
-  setPlayState(false);
-}
-
-
   function updateDateHeaders() {
     const formatted = formatPrettyDate(selectedDate);
     document.getElementById("calendarDateDisplay").innerText = formatted;
     document.getElementById("gcalHeaderDate").innerText = formatted;
 
-    const todayStr = toYMDString(now);
-    const selStr = toYMDString(selectedDate);
+    const todayStr = toLocalYMDString(now);
+    const selStr = toLocalYMDString(selectedDate);
     const yest = new Date(); yest.setDate(yest.getDate() - 1);
 
     document.getElementById("chipToday").classList.toggle("active", selStr === todayStr);
-    document.getElementById("chipYesterday").classList.toggle("active", selStr === toYMDString(yest));
+    document.getElementById("chipYesterday").classList.toggle("active", selStr === toLocalYMDString(yest));
   }
 
-    // 1. Fixed local date formatter (No UTC rollback)
-  function toLocalYMDString(d) {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
-  // 2. Fixed openCueSheet (Opens the exact selected calendar date)
   function openCueSheet() {
     const dateStr = toLocalYMDString(selectedDate);
-    const cueSheetUrl = `https://cuesheets.prasarbharati.org/su_viewSheetByPb/243/${dateStr}`;
-    window.open(cueSheetUrl, '_blank');
+    const cueSheetUrl = `https://cuesheets.prasarbharati.org/su_viewSheetByPb/292/${dateStr}`;
+    
+    if (window.NativeAudioBridge && window.NativeAudioBridge.openExternalBrowser) {
+      window.NativeAudioBridge.openExternalBrowser(cueSheetUrl);
+    } else {
+      window.open(cueSheetUrl, '_blank');
+    }
   }
 
   function openCalendarDialog() {
@@ -863,18 +884,18 @@
       grid.appendChild(empty);
     }
 
-    const todayStr = toYMDString(now);
+    const todayStr = toLocalYMDString(now);
 
     for (let day = 1; day <= daysInMonth; day++) {
       const cellDate = new Date(calendarViewingYear, calendarViewingMonth, day);
-      const cellDateStr = toYMDString(cellDate);
+      const cellDateStr = toLocalYMDString(cellDate);
 
       const cell = document.createElement("div");
       cell.className = "gcal-cell";
       cell.innerText = day;
 
       if (cellDateStr === todayStr) cell.classList.add("today");
-      if (cellDateStr === toYMDString(tempDialogDate)) cell.classList.add("selected");
+      if (cellDateStr === toLocalYMDString(tempDialogDate)) cell.classList.add("selected");
 
       if (cellDate > now || cellDate < past30Days) {
         cell.classList.add("disabled");
@@ -915,7 +936,7 @@
   }
 
   window.onNativeAudioError = function(errorMsg) {
-    const dateStr = toYMDString(selectedDate);
+    const dateStr = toLocalYMDString(selectedDate);
     const slot = activeIndex >= 0 ? hourBlocks[activeIndex].label : "Hour";
     toastMessage.innerText = `Recording not found for ${slot} (${dateStr}). It may still be recording or expired.`;
     toastAlert.style.display = "flex";
@@ -940,7 +961,7 @@
     timelineTrack.appendChild(card);
   });
 
-  /* NATIVE APP PROGRESS SYNC (When running in APK) */
+  /* PROGRESS SYNC (Native Android Bridge) */
   window.onNativeProgressSync = function(curMs, durMs, isPlaying) {
     isNativePlaying = isPlaying;
     setPlayState(isPlaying);
@@ -969,7 +990,7 @@
     }
   };
 
-  /* WEB BROWSER TIMEUPDATE (When running as Website) */
+  /* PROGRESS SYNC (Web Browser HTML5 Audio Fallback) */
   coreAudio.addEventListener("timeupdate", () => {
     if (window.NativeAudioBridge || isScrubbing || isWaveDragging) return;
 
@@ -1002,6 +1023,10 @@
   window.handleNativeAction = function(action) {
     if (action === "next") playNext();
     else if (action === "prev") playPrevious();
+  };
+
+  window.onNativeSleepTimerFinished = function() {
+    triggerSleepTimerFinished();
   };
 
   function playViaNativeBridge(url, title, sub, isLive) {
@@ -1056,7 +1081,7 @@
     streamStateLabel.innerText = "Archive Mode";
     sweepNextBtn.disabled = false;
 
-    const chosenDate = toYMDString(selectedDate);
+    const chosenDate = toLocalYMDString(selectedDate);
     const slot = hourBlocks[index];
 
     trackHeadline.innerText = `FM Rainbow: ${slot.label}`;
@@ -1192,13 +1217,26 @@
     }
   }
 
+  function explicitPause() {
+    if (window.NativeAudioBridge && window.NativeAudioBridge.pause) {
+      window.NativeAudioBridge.pause();
+    } else if (window.NativeAudioBridge) {
+      if (isNativePlaying) window.NativeAudioBridge.toggle();
+    }
+    if (!coreAudio.paused) {
+      coreAudio.pause();
+    }
+    isNativePlaying = false;
+    setPlayState(false);
+  }
+
   function setPlayState(isPlaying) {
     playIcon.style.display = isPlaying ? "none" : "block";
     pauseIcon.style.display = isPlaying ? "block" : "none";
     masterPlayBtn.classList.toggle("is-playing", isPlaying);
   }
 
-  /* PROTECTED STEPAUDIO (Prevents resetting to 0 on double tap) */
+  /* PROTECTED STEPAUDIO */
   function stepAudio(seconds) {
     if (activeIndex === -1) return;
     if (window.NativeAudioBridge) {
@@ -1223,7 +1261,7 @@
     document.querySelectorAll(".slot-card").forEach(c => c.classList.remove("active"));
   }
 
-  /* SCRUB BAR HANDLER (Dual-Mode: Native + Web) */
+  /* SCRUB BAR HANDLER */
   let isScrubbing = false;
 
   function handleScrubPointer(e) {
@@ -1269,7 +1307,7 @@
     }
   });
 
-  /* TOUCH SCREEN SEEK / HOLD (Dual-Mode: Native + Web) */
+  /* TOUCH SCREEN SEEK / HOLD */
   const touchDeckScreen = document.getElementById("touchDeckScreen");
   let waveTouchStartX = 0;
   let waveBaseTime = 0;
@@ -1341,7 +1379,7 @@
     }
   });
 
-  /* Sleep Timer Functions */
+  /* SLEEP TIMER CONTROLLER (ACTIVE POLLING & DIRECT HALT) */
   function openSleepModal() {
     document.getElementById("sleepModal").style.display = "flex";
   }
@@ -1360,26 +1398,51 @@
   }
 
   function setSleepTimer(minutes) {
-  clearSleepTimer();
-  const btn = document.getElementById("sleepTimerBtn");
-  sleepTargetTimestamp = Date.now() + (minutes * 60 * 1000);
-  btn.classList.add("active");
-
-  updateTimerDisplay();
-  sleepIntervalId = setInterval(updateTimerDisplay, 1000);
-
-  sleepTimerId = setTimeout(() => {
-    pauseAudio();
     clearSleepTimer();
-  }, minutes * 60 * 1000);
+    const btn = document.getElementById("sleepTimerBtn");
+    const millis = minutes * 60 * 1000;
+    sleepTargetTimestamp = Date.now() + millis;
+    btn.classList.add("active");
 
-  closeSleepModal();
-}
+    updateTimerDisplay();
+
+    // Polling interval executes every second and halts immediately upon expiration
+    sleepIntervalId = setInterval(() => {
+      const remainingMs = sleepTargetTimestamp - Date.now();
+      if (remainingMs <= 0) {
+        triggerSleepTimerFinished();
+      } else {
+        updateTimerDisplay();
+      }
+    }, 1000);
+
+    // Also trigger native service handler if inside APK
+    if (window.NativeAudioBridge && window.NativeAudioBridge.startSleepTimer) {
+      window.NativeAudioBridge.startSleepTimer(millis);
+    }
+
+    closeSleepModal();
+  }
+
+  function triggerSleepTimerFinished() {
+    explicitPause();
+    clearSleepTimer();
+    openTimeUpModal();
+  }
+
+  function openTimeUpModal() {
+    document.getElementById("timeUpModal").style.display = "flex";
+  }
+
+  function closeTimeUpModal() {
+    document.getElementById("timeUpModal").style.display = "none";
+  }
 
   function updateTimerDisplay() {
+    if (!sleepTargetTimestamp) return;
     const remainingMs = sleepTargetTimestamp - Date.now();
     if (remainingMs <= 0) {
-      clearSleepTimer();
+      document.getElementById("sleepTimerLabel").innerText = "00:00";
       return;
     }
     const mins = Math.floor(remainingMs / 60000);
@@ -1388,11 +1451,15 @@
   }
 
   function clearSleepTimer() {
-    if (sleepTimerId) clearTimeout(sleepTimerId);
-    if (sleepIntervalId) clearInterval(sleepIntervalId);
-    sleepTimerId = null;
-    sleepIntervalId = null;
+    if (sleepIntervalId) {
+      clearInterval(sleepIntervalId);
+      sleepIntervalId = null;
+    }
     sleepTargetTimestamp = null;
+
+    if (window.NativeAudioBridge && window.NativeAudioBridge.cancelSleepTimer) {
+      window.NativeAudioBridge.cancelSleepTimer();
+    }
 
     const btn = document.getElementById("sleepTimerBtn");
     btn.classList.remove("active");
