@@ -770,6 +770,22 @@
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   }
 
+  
+  function pauseAudio() {
+  if (window.NativeAudioBridge && window.NativeAudioBridge.pause) {
+    window.NativeAudioBridge.pause();
+  } else if (window.NativeAudioBridge) {
+    // Fallback if pause interface isn't bound
+    if (isNativePlaying) window.NativeAudioBridge.toggle();
+  }
+  if (!coreAudio.paused) {
+    coreAudio.pause();
+  }
+  isNativePlaying = false;
+  setPlayState(false);
+}
+
+
   function updateDateHeaders() {
     const formatted = formatPrettyDate(selectedDate);
     document.getElementById("calendarDateDisplay").innerText = formatted;
@@ -1344,26 +1360,21 @@
   }
 
   function setSleepTimer(minutes) {
+  clearSleepTimer();
+  const btn = document.getElementById("sleepTimerBtn");
+  sleepTargetTimestamp = Date.now() + (minutes * 60 * 1000);
+  btn.classList.add("active");
+
+  updateTimerDisplay();
+  sleepIntervalId = setInterval(updateTimerDisplay, 1000);
+
+  sleepTimerId = setTimeout(() => {
+    pauseAudio();
     clearSleepTimer();
-    const btn = document.getElementById("sleepTimerBtn");
-    sleepTargetTimestamp = Date.now() + (minutes * 60 * 1000);
-    btn.classList.add("active");
+  }, minutes * 60 * 1000);
 
-    updateTimerDisplay();
-    sleepIntervalId = setInterval(updateTimerDisplay, 1000);
-
-    sleepTimerId = setTimeout(() => {
-      if (isNativePlaying) {
-        togglePlayPause();
-      } else if (!coreAudio.paused) {
-        coreAudio.pause();
-        setPlayState(false);
-      }
-      clearSleepTimer();
-    }, minutes * 60 * 1000);
-
-    closeSleepModal();
-  }
+  closeSleepModal();
+}
 
   function updateTimerDisplay() {
     const remainingMs = sleepTargetTimestamp - Date.now();
