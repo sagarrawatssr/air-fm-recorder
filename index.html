@@ -542,7 +542,7 @@
 
   <div class="player-deck">
     <div class="deck-top-row">
-      <button id="livePillBtn" class="live-chip-btn active" onclick="switchToLiveMode()">
+      <button id="livePillBtn" class="live-chip-btn active" onclick="Mode()">
         <span class="pulse-dot"></span> LIVE
       </button>
       <span id="streamStateLabel" class="mode-indicator">Live Broadcast</span>
@@ -623,7 +623,7 @@
 
   <div id="toastAlert" class="toast-alert">
     <p id="toastMessage">Recording not found for this date &amp; hour.</p>
-    <button onclick="switchToLiveMode()">Go Live</button>
+    <button onclick="Mode()">Go Live</button>
   </div>
 
   <!-- Date Stepper with Material Calendar Picker -->
@@ -1163,6 +1163,21 @@ function loadSource(url, isLive) {
 
 // Bind native browser audio element error event
 coreAudio.addEventListener("error", onLiveStreamError);
+
+function getBrowserCompatibleUrl(rawUrl) {
+  // If running inside Android APK NativeAudioBridge, use direct stream URL
+  if (window.NativeAudioBridge) {
+    return rawUrl;
+  }
+
+  // CloudFront blocks web browsers due to missing CORS headers.
+  // Wrap with corsproxy only for CloudFront URLs when in standard web browser:
+  if (rawUrl.includes("cloudfront.net")) {
+    return `https://corsproxy.io/?url=${encodeURIComponent(rawUrl)}`;
+  }
+
+  return rawUrl;
+}
 function switchToLiveMode() {
     activeIndex = -1;
     clearTimelineHighlights();
@@ -1184,9 +1199,16 @@ function switchToLiveMode() {
     currentTimeDisplay.innerText = "00:00";
     totalDurationDisplay.innerText = "LIVE";
 
-    const freshLiveUrl = `${getCurrentLiveUrl()}?ts=${Date.now()}`;
-    if (playViaNativeBridge(freshLiveUrl, "AIR FM Rainbow 102.6", "Live Broadcast", true)) return;
-    loadSource(freshLiveUrl, true);
+  const rawUrl = `${getCurrentLiveUrl()}?ts=${Date.now()}`;
+
+  // 1. Android Native App (ExoPlayer plays direct CloudFront stream without CORS restrictions)
+  if (playViaNativeBridge(rawUrl, "AIR FM Rainbow 102.6", "Live Broadcast", true)) {
+    return;
+  }
+
+  // 2. Web Browser (Uses CORS Proxy to bypass browser blocking)
+  const browserUrl = getBrowserCompatibleUrl(rawUrl);
+  loadSource(browserUrl, true);
   }
 
   function playArchive(index) {
