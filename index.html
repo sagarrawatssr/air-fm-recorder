@@ -731,8 +731,41 @@
   /* System Constants */
   const REPO_OWNER = "sagarrawatssr";
   const REPO_NAME = "air-fm-recorder";
-  const STREAM_URL = "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8";
+ // GitHub Raw Configuration Source
+const GITHUB_CONFIG_URL = "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/streams.json";
 
+// Default stream array (used if remote config is unreachable)
+let streamList = [
+  "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi02/air002_Auto.m3u8",
+  "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8",
+  "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio004_Auto.m3u8"
+];
+let currentStreamIndex = 0;
+
+// 1. Fetch latest stream URLs from GitHub repository
+async function syncStreamUrlsFromGitHub() {
+  try {
+    const res = await fetch(`${GITHUB_CONFIG_URL}?nocache=${Date.now()}`);
+    if (res.ok) {
+      const data = await res.json();
+      const urls = [];
+      if (data.active_stream) urls.push(data.active_stream);
+      if (Array.isArray(data.fallback_streams)) urls.push(...data.fallback_streams);
+      
+      if (urls.length > 0) {
+        streamList = urls;
+        console.log("Successfully synced live stream mirrors:", streamList);
+      }
+    }
+  } catch (err) {
+    console.warn("Could not fetch remote streams.json, falling back to local defaults.", err);
+  }
+}
+syncStreamUrlsFromGitHub();
+  
+function getCurrentLiveUrl() {
+  return streamList[currentStreamIndex % streamList.length];
+}
   /* Elements */
   const coreAudio = document.getElementById("coreAudio");
   const masterPlayBtn = document.getElementById("masterPlayBtn");
@@ -943,9 +976,7 @@
     setPlayState(false);
   };
 
-  coreAudio.addEventListener("error", () => {
-    window.onNativeAudioError();
-  });
+
 
   /* Render 12 Horizontal Hourly Cards */
   hourBlocks.forEach((slot, idx) => {
@@ -1039,8 +1070,100 @@
     }
     return false;
   }
+  // 3. Fallback handler: auto-cycles to next stream when playback errors or stalls
+function onLiveStreamError() {
+  if (activeIndex === -1) {
+    currentStreamIndex = (currentStreamIndex + 1) % streamList.length;
+    console.warn("Stream failed or unreachable. Trying fallback URL:", getCurrentLiveUrl());
+    
+    setTimeout(() => {
+      if (activeIndex === -1) {
+        switchToLiveMode();
+      }
+    }, 1500);
+  }
+}
 
-  function switchToLiveMode() {
+  // 2. Watchdog: Catches silent or stalled streams transmitting empty data
+function startLiveStallWatchdog() {
+  stopLiveStallWatchdog();
+  lastKnownTime = -1;
+  stallCount = 0;
+
+  liveStallCheckTimer = setInterval(() => {
+    if (activeIndex !== -1) {
+      stopLiveStallWatchdog();
+      return;
+    }
+
+    // Only inspect when playback should be active
+    const isPlaying = isNativePlaying || (!coreAudio.paused && !coreAudio.ended);
+    if (!isPlaying) return;
+
+    const curTime = coreAudio.currentTime || 0;
+
+    // If currentTime hasn't moved for 6-8 seconds, the stream is dead/empty
+    if (lastKnownTime !== -1 && curTime === lastKnownTime) {
+      stallCount++;
+      if (stallCount >= 4) { // 4 checks * 2s = 8 seconds stalled
+        console.warn("Detected frozen/empty audio stream.");
+        stopLiveStallWatchdog();
+        onLiveStreamError();
+      }
+    } else {
+      lastKnownTime = curTime;
+      stallCount = 0;
+    }
+  }, 2000);
+}
+
+function stopLiveStallWatchdog() {
+  if (liveStallCheckTimer) {
+    clearInterval(liveStallCheckTimer);
+    liveStallCheckTimer = null;
+  }
+}
+
+// 3. Audio Loader with Hls.js Error Binding
+function loadSource(url, isLive) {
+  if (hlsInstance) {
+    hlsInstance.destroy();
+    hlsInstance = null;
+  }
+
+  if (isLive) {
+    startLiveStallWatchdog();
+
+    if (Hls.isSupported()) {
+      hlsInstance = new Hls({ liveSyncDurationCount: 3, enableWorker: true });
+      hlsInstance.loadSource(url);
+      hlsInstance.attachMedia(coreAudio);
+
+      hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+        coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
+      });
+
+      // Catches playlist 404s, CORS drops, or decoding faults
+      hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          onLiveStreamError();
+        }
+      });
+    } else if (coreAudio.canPlayType("application/vnd.apple.mpegurl")) {
+      coreAudio.src = url;
+      coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
+    }
+  } else {
+    stopLiveStallWatchdog();
+    coreAudio.src = url;
+    coreAudio.playbackRate = speedOptions[currentSpeedIndex];
+    coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
+  }
+}
+
+// Bind native browser audio element error event
+coreAudio.addEventListener("error", onLiveStreamError);
+function switchToLiveMode() {
     activeIndex = -1;
     clearTimelineHighlights();
     toastAlert.style.display = "none";
