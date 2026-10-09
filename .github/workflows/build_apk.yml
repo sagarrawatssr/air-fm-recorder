@@ -22,11 +22,24 @@ jobs:
 
       - name: Build App Project
         run: |
+          sudo apt-get update && sudo apt-get install -y jq
+
           mkdir -p native_app/app/src/main/java/com/sagar/airfm
           mkdir -p native_app/app/src/main/res/values
           mkdir -p native_app/app/src/main/assets
 
+          # Copy base web assets into the APK project
           cp index.html native_app/app/src/main/assets/index.html
+
+          # Extract active_stream from streams.json
+          ACTIVE_URL=$(jq -r '.active_stream' streams.json)
+          echo "Active stream from streams.json: $ACTIVE_URL"
+
+          # Inject active_stream as the top primary stream inside the bundled index.html
+          if [ -n "$ACTIVE_URL" ] && [ "$ACTIVE_URL" != "null" ]; then
+            sed -i -E "s|https?://[a-zA-Z0-9./_-]+\.m3u8|$ACTIVE_URL|1" native_app/app/src/main/assets/index.html
+            echo "Successfully baked active stream into bundled Android assets."
+          fi
 
           # 1. gradle.properties
           cat << 'EOF' > native_app/gradle.properties
