@@ -1,191 +1,148 @@
-name: "2. Record FM Rainbow (01 PM - 07 PM)"
+name: Record AIR FM Rainbow - Morning Session
 
 on:
+  schedule:
+    # 01:30 UTC = 07:00 AM IST
+    - cron: '30 1 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
-concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: true
-
 jobs:
-  record_afternoon:
+  record-morning:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg & GitHub CLI
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg gh
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg jq curl
 
+      - name: Record Morning Slices (07 AM - 01 PM IST)
+        run: |
+          mkdir -p output temp_chunks
 
-      - name: Record, Tag & Maintain Afternoon Broadcast
+          CONFIG_URL="https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/streams.json"
+          echo "Fetching dynamic endpoints from: $CONFIG_URL"
+          STREAM_CONFIG=$(curl -sSL "$CONFIG_URL" || echo "")
+
+          CANDIDATES=()
+          if [ -n "$STREAM_CONFIG" ]; then
+            while IFS= read -r line; do
+              [ -n "$line" ] && CANDIDATES+=("$line")
+            done < <(echo "$STREAM_CONFIG" | jq -r '.active_stream, .fallback_streams[]' 2>/dev/null || echo "$STREAM_CONFIG" | grep -o 'https://[^"]*')
+          fi
+
+          if [ ${#CANDIDATES[@]} -eq 0 ]; then
+            CANDIDATES=(
+              "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi02/air002_Auto.m3u8"
+              "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
+              "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio004_Auto.m3u8"
+            )
+          fi
+
+          probe_stream() {
+            local target_url="$1"
+            if ffprobe -v error -rw_timeout 6000000 -t 3 -show_entries stream=codec_type \
+               -headers "User-Agent: Mozilla/5.0" \
+               -of default=noprint_wrappers=1:nokey=1 "$target_url" 2>/dev/null | grep -q "audio"; then
+              return 0
+            fi
+            return 1
+          }
+
+          # Morning Slots: 00 (07-08 AM) to 05 (12-01 PM)
+          MORNING_SLOTS=("00" "01" "02" "03" "04" "05")
+
+          for slot in "${MORNING_SLOTS[@]}"; do
+            echo "=========================================="
+            echo "Starting Morning Slot: hour_${slot}"
+            echo "=========================================="
+
+            TARGET_DURATION=3600
+            TOTAL_CAPTURED=0
+            CHUNK_INDEX=0
+            rm -rf temp_chunks/*
+            > temp_chunks/concat_list.txt
+
+            CANDIDATE_INDEX=0
+            NUM_CANDIDATES=${#CANDIDATES[@]}
+
+            while [ "$TOTAL_CAPTURED" -lt "$TARGET_DURATION" ] && [ "$CANDIDATE_INDEX" -lt "$NUM_CANDIDATES" ]; do
+              REMAINING_SECS=$(( TARGET_DURATION - TOTAL_CAPTURED ))
+              CURRENT_URL="${CANDIDATES[$CANDIDATE_INDEX]}"
+
+              echo "Attempting stream candidate [$CANDIDATE_INDEX]: $CURRENT_URL"
+              if ! probe_stream "$CURRENT_URL"; then
+                echo "Stream probe failed or inactive. Switching to next mirror..."
+                CANDIDATE_INDEX=$(( CANDIDATE_INDEX + 1 ))
+                continue
+              fi
+
+              CHUNK_FILE="temp_chunks/chunk_${CHUNK_INDEX}.mp3"
+
+              ffmpeg -nostdin -y \
+                -headers "User-Agent: Mozilla/5.0" \
+                -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 10 \
+                -rw_timeout 15000000 \
+                -err_detect ignore_err -fflags +nobuffer+flush_packets+discardcorrupt \
+                -live_start_index -1 \
+                -i "$CURRENT_URL" \
+                -t "$REMAINING_SECS" \
+                -c:a libmp3lame -b:a 64k -ac 1 \
+                "$CHUNK_FILE" || true
+
+              CHUNK_SECS=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$CHUNK_FILE" 2>/dev/null | cut -d. -f1 || echo 0)
+              CHUNK_SECS=${CHUNK_SECS:-0}
+
+              if [ "$CHUNK_SECS" -gt 10 ]; then
+                echo "Captured valid chunk ${CHUNK_INDEX} (${CHUNK_SECS} seconds)."
+                echo "file '$(pwd)/${CHUNK_FILE}'" >> temp_chunks/concat_list.txt
+                TOTAL_CAPTURED=$(( TOTAL_CAPTURED + CHUNK_SECS ))
+                CHUNK_INDEX=$(( CHUNK_INDEX + 1 ))
+              else
+                echo "Chunk too short ($CHUNK_SECS s). Removing."
+                rm -f "$CHUNK_FILE"
+              fi
+
+              if [ "$TOTAL_CAPTURED" -lt "$TARGET_DURATION" ]; then
+                echo "Stream halted early (Captured: ${TOTAL_CAPTURED}s / ${TARGET_DURATION}s). Switching to fallback mirror..."
+                CANDIDATE_INDEX=$(( CANDIDATE_INDEX + 1 ))
+                sleep 3
+              fi
+            done
+
+            REC_DATE="$(TZ='Asia/Kolkata' date +'%Y-%m-%d')"
+            DATE_TAG="archive-${REC_DATE}"
+            FINAL_OUTPUT="output/${REC_DATE}_hour_${slot}.mp3"
+
+            if [ "$CHUNK_INDEX" -gt 0 ]; then
+              if [ "$CHUNK_INDEX" -eq 1 ]; then
+                mv "temp_chunks/chunk_0.mp3" "$FINAL_OUTPUT"
+              else
+                echo "Stitching $CHUNK_INDEX chunks into final hour file..."
+                ffmpeg -y -f concat -safe 0 -i temp_chunks/concat_list.txt -c copy "$FINAL_OUTPUT"
+              fi
+
+              FILE_SIZE=$(stat -c%s "$FINAL_OUTPUT" 2>/dev/null || echo 0)
+              if [ "$FILE_SIZE" -gt 1500000 ]; then
+                MAX_VOL=$(ffmpeg -i "$FINAL_OUTPUT" -af "volumedetect" -f null /dev/null 2>&1 | grep "max_volume:" | awk '{print $5}' | cut -d. -f1 || echo "-99")
+                
+                if [ "$MAX_VOL" != "-99" ] && [ "$MAX_VOL" -gt -65 ]; then
+                  gh release view "$DATE_TAG" || gh release create "$DATE_TAG" --title "Radio Archive ${REC_DATE}" --notes "Archive for ${REC_DATE}"
+                  gh release upload "$DATE_TAG" "$FINAL_OUTPUT" --clobber
+                  echo "Successfully uploaded $FINAL_OUTPUT (Size: $(( FILE_SIZE / 1024 )) KB, Max Volume: ${MAX_VOL} dB)"
+                else
+                  echo "Discarded $FINAL_OUTPUT: Detected pure silence (Volume: ${MAX_VOL} dB)."
+                  rm -f "$FINAL_OUTPUT"
+                fi
+              else
+                echo "Discarded $FINAL_OUTPUT: File size below threshold ($FILE_SIZE bytes)."
+                rm -f "$FINAL_OUTPUT"
+              fi
+            else
+              echo "Failed to record valid audio for slot hour_${slot}."
+            fi
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p output
-          STREAM_URL="https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8"
-          # 1. Record workflow start time right at the top of the step
-          START_TIME=$(date +%s)
-          MAX_WORKFLOW_SECS=21420  # 5 hours 57 minutes (3 minutes before 6-hour limit)
-          for i in $(seq -w 6 11); do
-            # NEW CODE: Halts if it's 18:54 or later to prevent recording past 7:00 PM
-            CURRENT_HOUR="$(TZ='Asia/Kolkata' date +'%-H')"
-            CURRENT_MIN="$(TZ='Asia/Kolkata' date +'%-M')"
-            if [ "$CURRENT_HOUR" -gt 18 ] || { [ "$CURRENT_HOUR" -eq 18 ] && [ "$CURRENT_MIN" -ge 54 ]; }; then
-               echo "Clock reached 6:54 PM IST cutoff ($CURRENT_HOUR:$CURRENT_MIN). Halting afternoon recorder."
-               break
-            fi
-
-            # Calculate seconds remaining until :54 mark
-            MIN="$(TZ='Asia/Kolkata' date +'%-M')"
-            SEC="$(TZ='Asia/Kolkata' date +'%-S')"
-            TARGET_MIN=54
-
-             REMAINING_SECS=$(( (TARGET_MIN - MIN) * 60 - SEC ))
-
-            if [ "$MIN" -lt "$TARGET_MIN" ]&& [ "$REMAINING_SECS" -ge 1800 ]; then
-              RECORD_SECONDS=$(( (TARGET_MIN - MIN) * 60 - SEC ))
-            else
-              RECORD_SECONDS=$(( (60 - MIN + TARGET_MIN) * 60 - SEC ))
-            fi
-
-            CURRENT_TIME=$(date +%s)
-           ELAPSED=$(( CURRENT_TIME - START_TIME ))
-           if [ "$ELAPSED" -ge "$MAX_WORKFLOW_SECS" ]; then
-           echo "Workflow running for $(( ELAPSED / 60 )) minutes. Within 3 minutes of 6-hour limit."
-           echo "Saving partial files and breaking loop cleanly..."
-           break
-          fi
-
-          # Calculate safe recording time so FFmpeg itself doesn't exceed the cutoff
-          TIME_REMAINING=$(( MAX_WORKFLOW_SECS - ELAPSED ))
-          if [ "$RECORD_SECONDS" -gt "$TIME_REMAINING" ]; then
-          RECORD_SECONDS=$TIME_REMAINING
-          echo "Shortening slot $i recording to $RECORD_SECONDS seconds to exit before runner timeout."
-          fi
-            TMP_FILE="output/temp_rec_${i}.mp3"
-
-            echo "--- Recording hour chunk $i for $RECORD_SECONDS seconds ($(( RECORD_SECONDS / 60 )) min $(( RECORD_SECONDS % 60 )) sec) ---"
-            TMP_FINAL="output/temp_final_${i}.mp3"
-          rm -f output/part_${i}_*.mp3 "$TMP_FINAL"
-
-          TARGET_TOTAL="$RECORD_SECONDS"
-          RECORDED_SO_FAR=0
-          PART_NUM=0
-          while [ "$RECORDED_SO_FAR" -lt "$TARGET_TOTAL" ]; do
-            REMAINING_SECS=$(( TARGET_TOTAL - RECORDED_SO_FAR ))
-
-            # If remaining time is under 10 seconds, finish the slot
-            if [ "$REMAINING_SECS" -le 10 ]; then
-              break
-            fi
-
-            PART_FILE="output/part_${i}_${PART_NUM}.mp3"
-
-            echo "[Slot $i] Streaming partition $PART_NUM for up to $REMAINING_SECS seconds..."
-
-            ffmpeg -nostdin -y \
-              -reconnect 1 \
-              -reconnect_at_eof 1 \
-              -reconnect_streamed 1 \
-              -reconnect_delay_max 5 \
-              -rw_timeout 15000000 \
-              -err_detect ignore_err \
-              -fflags +nobuffer+flush_packets+discardcorrupt \
-              -live_start_index -1 \
-              -i "$STREAM_URL" \
-              -t "$REMAINING_SECS" \
-              -c:a libmp3lame -b:a 64k -ac 1 \
-              "$PART_FILE" || true
-
-            # Check duration of the newly captured slice using ffprobe
-            SLICE_DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$PART_FILE" 2>/dev/null | cut -d. -f1 || echo 0)
-
-            # Fallback estimation if ffprobe cannot read corrupted headers: 64kbps = 8000 bytes/sec
-            if [ -z "$SLICE_DUR" ] || [ "$SLICE_DUR" -le 0 ]; then
-              FILE_BYTES=$(stat -c%s "$PART_FILE" 2>/dev/null || echo 0)
-              SLICE_DUR=$(( FILE_BYTES / 8000 ))
-            fi
-
-            if [ "$SLICE_DUR" -le 5 ]; then
-              echo "Stream unresponsive or segment below 5s. Waiting 5s before reconnecting..."
-              rm -f "$PART_FILE"
-              sleep 5
-            else
-              RECORDED_SO_FAR=$(( RECORDED_SO_FAR + SLICE_DUR ))
-              PART_NUM=$(( PART_NUM + 1 ))
-              echo "[Slot $i] Recorded: $RECORDED_SO_FAR / $TARGET_TOTAL seconds."
-            fi
-          done
-
-          # Merge all recovered segments into the expected output file
-          PART_COUNT=$(ls -1 output/part_${i}_*.mp3 2>/dev/null | wc -l)
-          if [ "$PART_COUNT" -gt 1 ]; then
-            echo "Concatenating $PART_COUNT audio pieces for slot $i..."
-            CONCAT_LIST="output/concat_${i}.txt"
-            rm -f "$CONCAT_LIST"
-            for f in output/part_${i}_*.mp3; do
-              echo "file '$(pwd)/$f'" >> "$CONCAT_LIST"
-            done
-            ffmpeg -y -f concat -safe 0 -i "$CONCAT_LIST" -c copy "$TMP_FILE"
-            rm -f "$CONCAT_LIST" output/part_${i}_*.mp3
-          elif [ "$PART_COUNT" -eq 1 ]; then
-            mv output/part_${i}_0.mp3 "$TMP_FILE"
-          else
-            echo "No audio segments captured for slot $i."
-            continue
-          fi
-            # Verify file exists and is not just a tiny fragment (at least 14.5 MB)
-            FILE_SIZE=$(stat -c%s "$TMP_FILE" 2>/dev/null || echo 0)
-            if [ "$FILE_SIZE" -lt 14000000 ]; then
-              echo "Warning: File size is too small (${FILE_SIZE} bytes). Stream drop or recording failure; skipping upload."
-              rm -f "$TMP_FILE"
-              continue
-            fi
-
-            # Dynamic midpoint based on actual recorded seconds
-            MIDPOINT_AGO=$(( RECORD_SECONDS / 2 ))
-            REC_DATE="$(TZ='Asia/Kolkata' date -d "$MIDPOINT_AGO seconds ago" +'%Y-%m-%d')"
-            MID_HOUR="$(TZ='Asia/Kolkata' date -d "$MIDPOINT_AGO seconds ago" +'%-H')"
-            DATE_TAG="archive-${REC_DATE}"
-
-            # Map IST 24-hr clock (13 to 18) to slot suffix (06 to 11)
-            # Extra guard: 12 maps to 06 if the afternoon run starts slightly early at 12:54 PM
-            case "$MID_HOUR" in
-              12|13) SLOT="06" ;;
-              14)    SLOT="07" ;;
-              15)    SLOT="08" ;;
-              16)    SLOT="09" ;;
-              17)    SLOT="10" ;;
-              18)    SLOT="11" ;;
-              *)     SLOT="$i" ;; # fallback to loop index if outside standard slots
-            esac
-
-            TARGET_FILE="${REC_DATE}_hour_${SLOT}.mp3"
-            mv "$TMP_FILE" "output/$TARGET_FILE"
-            echo "Audio midpoint fell in hour $MID_HOUR IST. Saved as: $TARGET_FILE"
-
-            gh release view "$DATE_TAG" || gh release create "$DATE_TAG" --title "Radio Archive ${REC_DATE}" --notes "Recordings for ${REC_DATE}"
-            gh release upload "$DATE_TAG" "output/$TARGET_FILE" --clobber
-            echo "Uploaded $TARGET_FILE successfully!"
-          done
-
-          echo "Purging archives older than 30 days..."
-          EXPIRED_TAG="archive-$(TZ='Asia/Kolkata' date -d '31 days ago' +'%Y-%m-%d')"
-          gh release delete "$EXPIRED_TAG" --yes --cleanup-tag || true
-
-          # Sunday check to push keepalive commit and prevent 60-day repository dormancy
-          DAY_OF_WEEK="$(TZ='Asia/Kolkata' date +'%u')"
-          if [ "$DAY_OF_WEEK" -eq 7 ]; then
-            echo "Sunday detected: Pushing keepalive commit..."
-            git config --global user.name "github-actions[bot]"
-            git config --global user.email "github-actions[bot]@users.noreply.github.com"
-            git commit --allow-empty -m "chore: weekly keepalive ping $(date +'%Y-%m-%d')"
-            git push origin main
-            echo "Keepalive commit pushed successfully."
-          else
-            echo "Not Sunday; skipping keepalive."
-          fi
