@@ -1,468 +1,1526 @@
-name: Build Dual Audio Radio APK
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>AIR FM Rainbow 102.6 &bull; Live &amp; Archive</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
-on:
-  workflow_dispatch:
+  <style>
+    :root {
+      --bg: #090d16;
+      --bg-gradient: radial-gradient(circle at 50% -20%, #152238 0%, #090d16 70%, #05070b 100%);
+      --card-bg: rgba(18, 25, 38, 0.78);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-border-active: rgba(59, 130, 246, 0.45);
+      --yt-red: #ff0033;
+      --live-glow: rgba(255, 0, 51, 0.45);
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.35);
+      --text-main: #f8fafc;
+      --text-dim: #94a3b8;
+      --text-muted: #64748b;
+      --radius-xl: 20px;
+      --radius-lg: 14px;
+      --radius-md: 10px;
+      --radius-pill: 9999px;
+    }
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
 
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      background-image: var(--bg-gradient);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 12px 12px 32px;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
 
-      - name: Accept Android SDK Licenses
-        run: |
-          yes | sdkmanager --licenses || true
+    .app-viewport {
+      width: 100%;
+      max-width: 520px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      position: relative;
+    }
 
-      - name: Build App Project
-        run: |
-          sudo apt-get update && sudo apt-get install -y jq
+    header {
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    }
 
-          mkdir -p native_app/app/src/main/java/com/sagar/airfm
-          mkdir -p native_app/app/src/main/res/values
-          mkdir -p native_app/app/src/main/assets
+    .brand-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 40%, #93c5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
 
-          # Copy base web assets into the APK project
-          cp index.html native_app/app/src/main/assets/index.html
+    .brand-sub { font-size: 0.72rem; color: var(--text-dim); font-weight: 500; }
 
-          # Extract active_stream from streams.json
-          ACTIVE_URL=$(jq -r '.active_stream' streams.json)
-          echo "Active stream from streams.json: $ACTIVE_URL"
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
 
-          # Inject active_stream as the top primary stream inside the bundled index.html
-          if [ -n "$ACTIVE_URL" ] && [ "$ACTIVE_URL" != "null" ]; then
-            sed -i -E "s|https?://[a-zA-Z0-9./_-]+\.m3u8|$ACTIVE_URL|1" native_app/app/src/main/assets/index.html
-            echo "Successfully baked active stream into bundled Android assets."
-          fi
+    .top-action-pill {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--card-border);
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
 
-          # 1. gradle.properties
-          cat << 'EOF' > native_app/gradle.properties
-          android.useAndroidX=true
-          android.enableJetifier=true
-          EOF
+    .top-action-pill:active { transform: scale(0.95); }
+    .top-action-pill.active {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: #60a5fa;
+      color: #93c5fd;
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
 
-          # 2. Root settings.gradle (Centralized repositories)
-          cat << 'EOF' > native_app/settings.gradle
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          rootProject.name = "AIR FM Rainbow"
-          include ':app'
-          EOF
+    .top-action-pill svg {
+      width: 13px;
+      height: 13px;
+      fill: currentColor;
+    }
 
-          # 3. Root build.gradle (Modern declarative AGP syntax)
-          cat << 'EOF' > native_app/build.gradle
-          plugins {
-              id 'com.android.application' version '8.4.1' apply false
-          }
-          EOF
+    .badge-freq {
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      color: #60a5fa;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 0.72rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+    }
 
-          # 4. App-level build.gradle
-          cat << 'EOF' > native_app/app/build.gradle
-          plugins {
-              id 'com.android.application'
-          }
+    .player-deck {
+      background: var(--card-bg);
+      backdrop-filter: blur(25px);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-xl);
+      padding: 18px 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
 
-          android {
-              namespace 'com.sagar.airfm'
-              compileSdk 34
+    .deck-top-row { display: flex; justify-content: space-between; align-items: center; }
 
-              defaultConfig {
-                  applicationId "com.sagar.airfm"
-                  minSdk 26
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-              }
+    .live-chip-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid var(--card-border);
+      color: var(--text-dim);
+      transition: all 0.2s ease;
+    }
 
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                  }
-              }
+    .live-chip-btn .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
 
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-          }
+    .live-chip-btn.active {
+      background: rgba(255, 0, 51, 0.16);
+      border-color: rgba(255, 0, 51, 0.55);
+      color: var(--yt-red);
+      box-shadow: 0 0 16px var(--live-glow);
+    }
 
-          dependencies {
-              implementation 'androidx.media3:media3-exoplayer:1.3.1'
-              implementation 'androidx.media3:media3-exoplayer-hls:1.3.1'
-              implementation 'androidx.media3:media3-session:1.3.1'
-              implementation 'androidx.core:core:1.13.1'
-              implementation 'androidx.media:media:1.7.0'
-          }
-          EOF
+    .live-chip-btn.active .pulse-dot {
+      background: var(--yt-red);
+      box-shadow: 0 0 10px var(--yt-red);
+      animation: live-pulse 1.5s infinite ease-out;
+    }
 
-          # 5. AndroidManifest.xml
-          cat << 'EOF' > native_app/app/src/main/AndroidManifest.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-              <application
-                  android:label="AIR FM Rainbow"
-                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-                  android:usesCleartextTraffic="true">
-                  <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-                  <service
-                      android:name=".RadioService"
-                      android:foregroundServiceType="mediaPlayback"
-                      android:exported="false" />
-              </application>
-          </manifest>
-          EOF
+    @keyframes live-pulse {
+      0% { transform: scale(0.9); opacity: 1; }
+      50% { transform: scale(1.35); opacity: 0.35; }
+      100% { transform: scale(0.9); opacity: 1; }
+    }
 
-          # 6. RadioService.java (Android 15 MediaSession Widget & Dual Audio)
-          cat << 'EOF' > native_app/app/src/main/java/com/sagar/airfm/RadioService.java
-          package com.sagar.airfm;
+    .mode-indicator { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; color: var(--text-muted); text-transform: uppercase; }
+    .track-meta { display: flex; flex-direction: column; gap: 3px; }
+    .track-title { font-size: 1.25rem; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .track-subtitle { font-size: 0.8rem; color: var(--text-dim); font-weight: 500; }
 
-          import android.app.Notification;
-          import android.app.NotificationChannel;
-          import android.app.NotificationManager;
-          import android.app.PendingIntent;
-          import android.app.Service;
-          import android.content.Intent;
-          import android.os.Binder;
-          import android.os.Build;
-          import android.os.Handler;
-          import android.os.IBinder;
-          import android.os.Looper;
-          import android.support.v4.media.MediaMetadataCompat;
-          import android.support.v4.media.session.MediaSessionCompat;
-          import android.support.v4.media.session.PlaybackStateCompat;
-          import androidx.core.app.NotificationCompat;
-          import androidx.media3.common.MediaItem;
-          import androidx.media3.common.Player;
-          import androidx.media3.exoplayer.ExoPlayer;
+    .touch-deck-screen {
+      position: relative;
+      width: 100%;
+      height: 95px;
+      border-radius: var(--radius-lg);
+      background: rgba(8, 12, 20, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    }
 
-          public class RadioService extends Service {
-              public static final String ACTION_TOGGLE = "com.sagar.airfm.ACTION_TOGGLE";
-              private ExoPlayer player;
-              private MediaSessionCompat mediaSession;
-              private String currentTitle = "AIR FM Rainbow 102.6";
-              private String currentSub = "Live Broadcast";
-              private final IBinder binder = new LocalBinder();
-              private final Handler timeHandler = new Handler(Looper.getMainLooper());
-              private ProgressCallback progressCallback;
+    #visualizerCanvas { width: 100%; height: 100%; display: block; pointer-events: none; }
 
-              public interface ProgressCallback {
-                  void onProgress(long currentMs, long durationMs, boolean isPlaying);
-              }
+    .skip-half { position: absolute; top: 0; bottom: 0; width: 50%; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
+    .skip-half.left { left: 0; }
+    .skip-half.right { right: 0; }
 
-              public class LocalBinder extends Binder {
-                  public RadioService getService() { return RadioService.this; }
-              }
+    .skip-ripple {
+      position: absolute;
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.18);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.6);
+      transition: transform 0.28s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.28s ease;
+    }
 
-              public void setProgressCallback(ProgressCallback callback) {
-                  this.progressCallback = callback;
-              }
+    .skip-ripple.show { opacity: 1; transform: scale(1); }
+    .skip-ripple span { font-size: 0.75rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: #fff; }
 
-              @Override
-              public void onCreate() {
-                  super.onCreate();
-                  createChannel();
+    /* EXACT PLAYBAR STYLES */
+    .yt-scrub-container { position: relative; padding: 10px 0 6px; cursor: pointer; touch-action: none; }
+    .yt-scrub-track { position: relative; height: 5px; background: rgba(255, 255, 255, 0.14); border-radius: 4px; transition: height 0.12s ease; }
+    .yt-scrub-container:hover .yt-scrub-track, .yt-scrub-container.is-scrubbing .yt-scrub-track { height: 8px; }
+    .yt-scrub-buffered { position: absolute; top: 0; left: 0; height: 100%; width: 0%; background: rgba(255, 255, 255, 0.3); border-radius: 4px; pointer-events: none; }
+    .yt-scrub-played { position: absolute; top: 0; left: 0; height: 100%; width: 0%; background: var(--yt-red); border-radius: 4px; pointer-events: none; }
+    .yt-scrub-thumb { position: absolute; top: 50%; left: 0%; width: 14px; height: 14px; background: var(--yt-red); border: 2px solid #fff; border-radius: 50%; transform: translate(-50%, -50%) scale(1); pointer-events: none; box-shadow: 0 0 8px rgba(0, 0, 0, 0.6); }
 
-                  mediaSession = new MediaSessionCompat(this, "AirFmMediaSession");
-                  mediaSession.setCallback(new MediaSessionCompat.Callback() {
-                      @Override
-                      public void onPlay() { toggle(); }
-                      @Override
-                      public void onPause() { toggle(); }
-                  });
-                  mediaSession.setActive(true);
+    .scrub-tooltip {
+      position: absolute;
+      bottom: 26px;
+      left: 0;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #fff;
+      font-size: 0.72rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      pointer-events: none;
+      display: none;
+      white-space: nowrap;
+    }
 
-                  player = new ExoPlayer.Builder(this).build();
-                  player.addListener(new Player.Listener() {
-                      @Override
-                      public void onIsPlayingChanged(boolean isPlaying) {
-                          updatePlaybackState(isPlaying);
-                          updateNotification(isPlaying);
-                      }
-                  });
+    .time-strip { display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-muted); font-weight: 500; margin-top: 2px; }
 
-                  startForeground(101, buildMediaNotification(false));
-                  startTimeLoop();
-              }
+    /* ACTION DECK CONTROLS */
+    .deck-action-row { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px; }
+    .circle-icon-btn { background: transparent; border: none; color: var(--text-dim); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 8px; border-radius: 50%; transition: all 0.15s ease; position: relative; }
+    .circle-icon-btn:active { transform: scale(0.9); color: #fff; }
+    .circle-icon-btn.active { color: #60a5fa; }
+    .circle-icon-btn svg { width: 22px; height: 22px; fill: currentColor; }
 
-              private void startTimeLoop() {
-                  timeHandler.postDelayed(new Runnable() {
-                      @Override
-                      public void run() {
-                          if (player != null && progressCallback != null) {
-                              long cur = player.getCurrentPosition();
-                              long dur = player.getDuration();
-                              progressCallback.onProgress(cur, dur, player.isPlaying());
-                          }
-                          timeHandler.postDelayed(this, 500);
-                      }
-                  }, 500);
-              }
+    .repeat-badge {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      font-size: 0.58rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 800;
+      background: #1e293b;
+      color: #94a3b8;
+      padding: 1px 4px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .circle-icon-btn.active .repeat-badge { background: #1d4ed8; color: #fff; border-color: #60a5fa; }
 
-              public void playUrl(String streamUrl, String title, String sub) {
-                  this.currentTitle = (title != null && !title.isEmpty()) ? title : "AIR FM Rainbow";
-                  this.currentSub = (sub != null && !sub.isEmpty()) ? sub : "Broadcast";
+    .master-toggle-btn {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 6px 20px var(--accent-glow);
+    }
+    .master-toggle-btn svg { width: 24px; height: 24px; fill: #fff; margin-left: 2px; }
+    .master-toggle-btn.is-playing svg { margin-left: 0; }
 
-                  mediaSession.setMetadata(new MediaMetadataCompat.Builder()
-                          .putString(MediaMetadataCompat.METADATA_KEY_TITLE, currentTitle)
-                          .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, currentSub)
-                          .build());
+    .deck-sub-row { display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.05); }
+    .volume-box { display: flex; align-items: center; gap: 8px; width: 48%; }
+    .volume-box svg { width: 17px; height: 17px; fill: var(--text-muted); flex-shrink: 0; }
+    .volume-slider { -webkit-appearance: none; width: 100%; height: 4px; border-radius: var(--radius-pill); background: rgba(255, 255, 255, 0.1); outline: none; }
+    .volume-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; cursor: pointer; }
 
-                  if (player != null) {
-                      player.stop();
-                      player.clearMediaItems();
-                      player.setMediaItem(MediaItem.fromUri(streamUrl));
-                      player.prepare();
-                      player.play();
-                  }
-              }
+    .speed-pill-btn { display: inline-flex; align-items: center; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--card-border); border-radius: var(--radius-pill); padding: 5px 12px; font-size: 0.72rem; font-weight: 700; color: var(--text-dim); cursor: pointer; }
+    .speed-pill-btn.locked { opacity: 0.5; cursor: not-allowed; }
 
-              public void toggle() {
-                  if (player != null) {
-                      if (player.isPlaying()) {
-                          player.pause();
-                      } else {
-                          player.play();
-                      }
-                  }
-              }
+    .toast-alert { display: none; background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.5); border-radius: var(--radius-md); padding: 12px 14px; gap: 10px; align-items: center; animation: pulseAlert 0.3s ease-out; }
+    @keyframes pulseAlert { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+    .toast-alert p { font-size: 0.78rem; color: #fca5a5; line-height: 1.35; flex: 1; }
+    .toast-alert button { background: #ef4444; border: none; color: #fff; font-size: 0.72rem; font-weight: 700; padding: 6px 12px; border-radius: var(--radius-pill); cursor: pointer; }
 
-              public void seekTo(long targetMs) {
-                  if (player != null) {
-                      player.seekTo(targetMs);
-                  }
-              }
+    /* Date Panel */
+    .date-panel {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
 
-              public void seekDelta(long deltaMs) {
-                  if (player != null) {
-                      long target = Math.max(0, player.getCurrentPosition() + deltaMs);
-                      player.seekTo(target);
-                  }
-              }
+    .quick-chips-row { display: flex; gap: 8px; }
+    .chip-btn { flex: 1; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); color: var(--text-dim); font-size: 0.75rem; font-weight: 600; padding: 7px 10px; border-radius: var(--radius-pill); cursor: pointer; text-align: center; }
+    .chip-btn.active { background: var(--accent); border-color: #60a5fa; color: #fff; }
 
-              private void updatePlaybackState(boolean isPlaying) {
-                  long actions = PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE |
-                                 PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_SEEK_TO;
-                  int state = isPlaying ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED;
-                  long pos = player != null ? player.getCurrentPosition() : 0;
-                  mediaSession.setPlaybackState(new PlaybackStateCompat.Builder()
-                          .setActions(actions)
-                          .setState(state, pos, 1.0f)
-                          .build());
-              }
+    .calendar-stepper { display: flex; align-items: center; gap: 8px; position: relative; }
+    .calendar-step-btn { width: 42px; height: 42px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); color: var(--text-main); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+    .calendar-step-btn:active { background: rgba(255, 255, 255, 0.12); }
 
-              private void updateNotification(boolean isPlaying) {
-                  NotificationManager nm = getSystemService(NotificationManager.class);
-                  if (nm != null) {
-                      nm.notify(101, buildMediaNotification(isPlaying));
-                  }
-              }
+    .calendar-display-box {
+      flex: 1;
+      height: 42px;
+      background: rgba(10, 14, 22, 0.85);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .calendar-display-box svg { width: 17px; height: 17px; fill: #60a5fa; }
 
-              private Notification buildMediaNotification(boolean isPlaying) {
-                  Intent openIntent = new Intent(this, MainActivity.class);
-                  PendingIntent piOpen = PendingIntent.getActivity(
-                          this, 0, openIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                  );
+    /* 12 Hourly Slices */
+    .timeline-container { display: flex; flex-direction: column; gap: 8px; }
+    .section-label-row { display: flex; align-items: center; justify-content: space-between; padding: 0 4px; }
+    .section-label { font-size: 0.76rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; }
+    .sweep-action-btn { background: transparent; border: none; color: #60a5fa; font-size: 0.75rem; font-weight: 600; cursor: pointer; }
+    .sweep-action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-                  Intent toggleIntent = new Intent(this, RadioService.class);
-                  toggleIntent.setAction(ACTION_TOGGLE);
-                  PendingIntent piToggle = PendingIntent.getService(
-                          this, 1, toggleIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                  );
+    .timeline-track { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 14px; scrollbar-width: none; scroll-snap-type: x mandatory; }
+    .timeline-track::-webkit-scrollbar { display: none; }
+    .slot-card { scroll-snap-align: start; flex: 0 0 110px; height: 72px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-md); padding: 9px 8px; display: flex; flex-direction: column; justify-content: space-between; cursor: pointer; }
+    .slot-card.active { background: linear-gradient(135deg, rgba(37, 99, 235, 0.35), rgba(30, 58, 138, 0.5)); border-color: #60a5fa; }
+    .slot-num-badge { font-size: 0.65rem; font-weight: 700; color: var(--text-muted); }
+    .slot-card.active .slot-num-badge { color: #93c5fd; }
+    .slot-time-text { font-size: 0.8rem; font-weight: 700; color: #fff; }
+    .slot-desc { font-size: 0.68rem; color: var(--text-dim); }
 
-                  int actionIcon = isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
-                  String actionTitle = isPlaying ? "Pause" : "Play";
+    /* Modals Backdrop */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 16px;
+    }
 
-                  return new NotificationCompat.Builder(this, "radio_media_channel")
-                          .setContentTitle(currentTitle)
-                          .setContentText(currentSub)
-                          .setSmallIcon(android.R.drawable.ic_media_play)
-                          .setContentIntent(piOpen)
-                          .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                          .setOngoing(isPlaying)
-                          .addAction(actionIcon, actionTitle, piToggle)
-                          .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
-                                  .setMediaSession(mediaSession.getSessionToken())
-                                  .setShowActionsInCompactView(0))
-                          .build();
-              }
+    /* Google Calendar Dialog */
+    .gcal-dialog {
+      width: 100%;
+      max-width: 340px;
+      background: #1f2937;
+      border-radius: 28px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: dialogPop 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+    @keyframes dialogPop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
 
-              private void createChannel() {
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                      NotificationChannel ch = new NotificationChannel(
-                              "radio_media_channel",
-                              "Radio Media Player",
-                              NotificationManager.IMPORTANCE_LOW
-                      );
-                      ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-                      NotificationManager nm = getSystemService(NotificationManager.class);
-                      if (nm != null) nm.createNotificationChannel(ch);
-                  }
-              }
+    .gcal-header {
+      padding: 20px 24px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .gcal-subtext { font-size: 0.75rem; color: var(--text-dim); font-weight: 600; text-transform: uppercase; }
+    .gcal-title-date { font-size: 1.55rem; font-weight: 700; color: #fff; }
 
-              @Override
-              public int onStartCommand(Intent intent, int flags, int startId) {
-                  if (intent != null && ACTION_TOGGLE.equals(intent.getAction())) {
-                      toggle();
-                  }
-                  return START_STICKY;
-              }
+    .gcal-month-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .gcal-nav-btn { background: transparent; border: none; color: #fff; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .gcal-nav-btn:active { background: rgba(255, 255, 255, 0.1); }
+    .gcal-nav-btn svg { width: 18px; height: 18px; fill: currentColor; }
 
-              @Override
-              public void onDestroy() {
-                  timeHandler.removeCallbacksAndMessages(null);
-                  if (player != null) player.release();
-                  if (mediaSession != null) mediaSession.release();
-                  super.onDestroy();
-              }
+    .gcal-body { padding: 4px 16px 14px; }
+    .gcal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; margin-bottom: 6px; }
+    .gcal-weekday { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; }
 
-              @Override
-              public IBinder onBind(Intent intent) { return binder; }
-          }
-          EOF
+    .gcal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .gcal-cell {
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #fff;
+      cursor: pointer;
+    }
+    .gcal-cell.empty { pointer-events: none; }
+    .gcal-cell.disabled { opacity: 0.25; pointer-events: none; }
+    .gcal-cell.today { border: 1.5px solid #60a5fa; }
+    .gcal-cell.selected { background: #3b82f6; color: #fff; font-weight: 800; box-shadow: 0 0 10px rgba(59,130,246,0.6); }
 
-          # 7. MainActivity.java
-          cat << 'EOF' > native_app/app/src/main/java/com/sagar/airfm/MainActivity.java
-          package com.sagar.airfm;
+    .gcal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 10px 20px 18px;
+    }
+    .gcal-btn { background: transparent; border: none; color: #60a5fa; font-weight: 700; font-size: 0.85rem; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+    .gcal-btn:active { background: rgba(96, 165, 250, 0.15); }
 
-          import android.Manifest;
-          import android.app.Activity;
-          import android.content.ComponentName;
-          import android.content.Context;
-          import android.content.Intent;
-          import android.content.ServiceConnection;
-          import android.content.pm.PackageManager;
-          import android.os.Build;
-          import android.os.Bundle;
-          import android.os.IBinder;
-          import android.webkit.JavascriptInterface;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
+    /* Sleep Timer Bottom Modal */
+    .sleep-sheet {
+      width: 100%;
+      max-width: 480px;
+      background: #111827;
+      border: 1px solid var(--card-border);
+      border-top-left-radius: 24px;
+      border-top-right-radius: 24px;
+      padding: 20px 22px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.85);
+      animation: slideUp 0.22s ease-out;
+      margin-top: auto;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
-          public class MainActivity extends Activity {
-              private WebView webView;
-              private RadioService service;
-              private boolean bound = false;
+    .sheet-head { display: flex; justify-content: space-between; align-items: center; }
+    .sheet-title { font-size: 1rem; font-weight: 700; color: #fff; }
+    .sheet-close { background: transparent; border: none; color: var(--text-dim); font-size: 1.4rem; cursor: pointer; padding: 4px; }
 
-              private final ServiceConnection conn = new ServiceConnection() {
-                  @Override
-                  public void onServiceConnected(ComponentName name, IBinder b) {
-                      service = ((RadioService.LocalBinder) b).getService();
-                      bound = true;
-                      service.setProgressCallback((currentMs, durationMs, isPlaying) -> {
-                          runOnUiThread(() -> {
-                              if (webView != null) {
-                                  webView.evaluateJavascript("if(window.onNativeProgressSync) window.onNativeProgressSync(" + currentMs + "," + durationMs + "," + isPlaying + ");", null);
-                              }
-                          });
-                      });
-                  }
-                  @Override
-                  public void onServiceDisconnected(ComponentName name) {
-                      bound = false;
-                  }
-              };
+    .timer-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .timer-opt-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); border-radius: var(--radius-md); color: #fff; font-size: 0.82rem; font-weight: 700; padding: 12px 6px; cursor: pointer; text-align: center; }
+    .timer-opt-btn:active { transform: scale(0.95); }
 
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
+    .custom-timer-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--card-border);
+    }
+    .custom-timer-row span { font-size: 0.78rem; color: var(--text-dim); font-weight: 600; }
+    .custom-timer-input {
+      flex: 1;
+      height: 38px;
+      background: #090d16;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-align: center;
+      outline: none;
+    }
+    .custom-set-btn { background: var(--accent); border: none; color: #fff; padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; }
+    .timer-turn-off-btn { width: 100%; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; padding: 11px; border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 700; cursor: pointer; text-align: center; }
 
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                      if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                          requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 101);
-                      }
-                  }
+    /* Time's Up Alert Modal */
+    .timeup-dialog {
+      width: 100%;
+      max-width: 320px;
+      background: #1e293b;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.85);
+      padding: 22px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      text-align: center;
+      animation: dialogPop 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+    .timeup-icon { font-size: 2.2rem; }
+    .timeup-title { font-size: 1.15rem; font-weight: 800; color: #fff; }
+    .timeup-msg { font-size: 0.8rem; color: var(--text-dim); line-height: 1.4; }
+    .timeup-actions { display: flex; gap: 10px; margin-top: 6px; }
+    .timeup-btn { flex: 1; padding: 10px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; cursor: pointer; border: none; }
+    .timeup-btn.primary { background: #3b82f6; color: #fff; }
+    .timeup-btn.secondary { background: rgba(255, 255, 255, 0.08); color: var(--text-dim); }
+  </style>
+</head>
+<body>
 
-                  Intent intent = new Intent(this, RadioService.class);
-                  startForegroundService(intent);
-                  bindService(intent, conn, Context.BIND_AUTO_CREATE);
+<div class="app-viewport">
+  <header>
+    <div>
+      <h1 class="brand-title">AIR FM Rainbow</h1>
+      <p class="brand-sub">Delhi &bull; Live &amp; 30-Day Archive</p>
+    </div>
+    <div class="header-actions">
+      <button class="top-action-pill" onclick="openCueSheet()" title="View Daily Timetable / Program List">
+        <svg viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+        <span>Schedule</span>
+      </button>
 
-                  webView = new WebView(this);
-                  setContentView(webView);
+      <button id="sleepTimerBtn" class="top-action-pill" onclick="openSleepModal()" title="Sleep Timer">
+        <svg viewBox="0 0 24 24"><path d="M12.3 2a10 10 0 0 0-1.9 19.8 10 10 0 0 1-9.6-8.3z"/></svg>
+        <span id="sleepTimerLabel">Timer</span>
+      </button>
 
-                  WebSettings ws = webView.getSettings();
-                  ws.setJavaScriptEnabled(true);
-                  ws.setDomStorageEnabled(true);
-                  ws.setMediaPlaybackRequiresUserGesture(false);
+      <span class="badge-freq">102.6</span>
+    </div>
+  </header>
 
-                  webView.addJavascriptInterface(new Object() {
-                      @JavascriptInterface
-                      public void play(String url, String title, String sub) {
-                          runOnUiThread(() -> {
-                              if (bound && service != null) service.playUrl(url, title, sub);
-                          });
-                      }
+  <div class="player-deck">
+    <div class="deck-top-row">
+      <button id="livePillBtn" class="live-chip-btn active" onclick="switchToLiveMode()">
+        <span class="pulse-dot"></span> LIVE
+      </button>
+      <span id="streamStateLabel" class="mode-indicator">Live Broadcast</span>
+    </div>
 
-                      @JavascriptInterface
-                      public void toggle() {
-                          runOnUiThread(() -> {
-                              if (bound && service != null) service.toggle();
-                          });
-                      }
+    <div class="track-meta">
+      <div id="trackHeadline" class="track-title">AIR FM Rainbow Delhi (102.6 MHz)</div>
+      <div id="trackSubtitle" class="track-subtitle">Real-time live edge broadcast</div>
+    </div>
 
-                      @JavascriptInterface
-                      public void seekTo(long targetMs) {
-                          runOnUiThread(() -> {
-                              if (bound && service != null) service.seekTo(targetMs);
-                          });
-                      }
+    <div id="touchDeckScreen" class="touch-deck-screen">
+      <canvas id="visualizerCanvas"></canvas>
+      <div class="skip-half left" id="skipHalfLeft">
+        <div id="rippleLeft" class="skip-ripple">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.2 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
+          <span>-10s</span>
+        </div>
+      </div>
+      <div class="skip-half right" id="skipHalfRight">
+        <div id="rippleRight" class="skip-ripple">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M11.5 8c2.65 0 5.05.99 6.9 2.6L22 7v9h-9l3.62-3.62c-1.39-1.2-3.16-1.88-5.12-1.88-3.54 0-6.55 2.31-7.6 5.5l-2.37-.78C2.92 11.03 6.85 8 11.5 8z"/></svg>
+          <span>+10s</span>
+        </div>
+      </div>
+    </div>
 
-                      @JavascriptInterface
-                      public void seekDelta(long deltaMs) {
-                          runOnUiThread(() -> {
-                              if (bound && service != null) service.seekDelta(deltaMs);
-                          });
-                      }
-                  }, "NativeAudioBridge");
+    <!-- PLAYBAR MARKUP -->
+    <div id="ytScrubContainer" class="yt-scrub-container">
+      <div id="scrubTooltip" class="scrub-tooltip">00:00</div>
+      <div class="yt-scrub-track">
+        <div id="bufferBar" class="yt-scrub-buffered"></div>
+        <div id="progressBar" class="yt-scrub-played"></div>
+        <div id="scrubThumb" class="yt-scrub-thumb"></div>
+      </div>
+      <div class="time-strip">
+        <span id="currentTimeDisplay">00:00</span>
+        <span id="totalDurationDisplay">LIVE</span>
+      </div>
+    </div>
 
-                  webView.setWebViewClient(new WebViewClient());
-                  webView.loadUrl("file:///android_asset/index.html");
-              }
+    <!-- ACTION DECK -->
+    <div class="deck-action-row">
+      <button class="circle-icon-btn" id="btnShuffle" onclick="toggleShuffle()" title="Shuffle Mode">
+        <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+      </button>
 
-              @Override
-              protected void onDestroy() {
-                  if (bound) unbindService(conn);
-                  if (webView != null) webView.destroy();
-                  super.onDestroy();
-              }
-          }
-          EOF
+      <button class="circle-icon-btn" onclick="playPrevious()" title="Previous Slot">
+        <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+      </button>
 
-      - name: Build APK
-        run: |
-          cd native_app
-          gradle wrapper --gradle-version 8.7
-          ./gradlew assembleDebug --no-daemon
+      <button id="masterPlayBtn" class="master-toggle-btn" onclick="togglePlayPause()">
+        <svg id="playIcon" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+        <svg id="pauseIcon" style="display:none;" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: AIR-FM-Rainbow-Full-App
-          path: native_app/app/build/outputs/apk/debug/*.apk
+      <button class="circle-icon-btn" onclick="playNext()" title="Next Slot">
+        <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+      </button>
+
+      <button class="circle-icon-btn active" id="btnRepeat" onclick="cycleRepeatMode()" title="Repeat Mode">
+        <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+        <span id="repeatBadge" class="repeat-badge">ALL</span>
+      </button>
+    </div>
+
+    <!-- VOLUME & SPEED CONTROLS -->
+    <div class="deck-sub-row">
+      <div class="volume-box">
+        <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+        <input type="range" id="volRange" class="volume-slider" min="0" max="1" step="0.01" value="1" oninput="changeVolume(this.value)">
+      </div>
+
+      <div id="speedPill" class="speed-pill-btn locked" onclick="cyclePlaybackSpeed()">
+        <span id="speedLabel">1.0x</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastAlert" class="toast-alert">
+    <p id="toastMessage">Recording not found for this date &amp; hour.</p>
+    <button onclick="switchToLiveMode()">Go Live</button>
+  </div>
+
+  <!-- Date Stepper with Material Calendar Picker -->
+  <div class="date-panel">
+    <div class="quick-chips-row">
+      <button class="chip-btn active" id="chipToday" onclick="applyQuickDate(0)">Today</button>
+      <button class="chip-btn" id="chipYesterday" onclick="applyQuickDate(1)">Yesterday</button>
+    </div>
+
+    <div class="calendar-stepper">
+      <button class="calendar-step-btn" onclick="stepCalendarDay(-1)" title="Previous Day">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+      </button>
+      <div class="calendar-display-box" onclick="openCalendarDialog()">
+        <svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
+        <span id="calendarDateDisplay">25 Sept 2026</span>
+      </div>
+      <button class="calendar-step-btn" onclick="stepCalendarDay(1)" title="Next Day">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- 12 Hourly Timeline Cards -->
+  <div class="timeline-container">
+    <div class="section-label-row">
+      <span class="section-label">Hourly Timeline (07 AM &ndash; 07 PM IST)</span>
+      <button id="sweepNextBtn" class="sweep-action-btn" onclick="playNext()" disabled>
+        Sweep Next &rarr;
+      </button>
+    </div>
+    <div class="timeline-track" id="timelineTrack"></div>
+  </div>
+
+  <!-- Material Google Calendar Modal Dialog -->
+  <div class="modal-overlay" id="calendarModal" onclick="closeCalendarDialog(event)">
+    <div class="gcal-dialog" onclick="event.stopPropagation()">
+      <div class="gcal-header">
+        <span class="gcal-subtext">Select date</span>
+        <div class="gcal-title-date" id="gcalHeaderDate">25 Sept 2026</div>
+      </div>
+      <div class="gcal-month-nav">
+        <button class="gcal-nav-btn" onclick="prevCalendarMonth()"><svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
+        <span id="gcalMonthYear">September 2026</span>
+        <button class="gcal-nav-btn" onclick="nextCalendarMonth()"><svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></button>
+      </div>
+      <div class="gcal-body">
+        <div class="gcal-weekdays">
+          <div class="gcal-weekday">M</div>
+          <div class="gcal-weekday">T</div>
+          <div class="gcal-weekday">W</div>
+          <div class="gcal-weekday">T</div>
+          <div class="gcal-weekday">F</div>
+          <div class="gcal-weekday">S</div>
+          <div class="gcal-weekday">S</div>
+        </div>
+        <div class="gcal-grid" id="gcalGrid"></div>
+      </div>
+      <div class="gcal-actions">
+        <button class="gcal-btn" onclick="closeCalendarDialog()">Cancel</button>
+        <button class="gcal-btn" onclick="confirmCalendarDate()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sleep Timer Modal -->
+  <div class="modal-overlay" id="sleepModal" onclick="closeSleepModal(event)">
+    <div class="sleep-sheet" onclick="event.stopPropagation()">
+      <div class="sheet-head">
+        <span class="sheet-title">🌙 Sleep Timer</span>
+        <button class="sheet-close" onclick="closeSleepModal()">&times;</button>
+      </div>
+      <div class="timer-grid">
+        <button class="timer-opt-btn" onclick="setSleepTimer(15)">15m</button>
+        <button class="timer-opt-btn" onclick="setSleepTimer(30)">30m</button>
+        <button class="timer-opt-btn" onclick="setSleepTimer(45)">45m</button>
+        <button class="timer-opt-btn" onclick="setSleepTimer(60)">60m</button>
+      </div>
+      <div class="custom-timer-row">
+        <span>Custom:</span>
+        <input type="number" id="customMinutesInput" class="custom-timer-input" placeholder="Minutes" min="1" max="600" />
+        <button class="custom-set-btn" onclick="setCustomSleepTimer()">Set</button>
+      </div>
+      <button class="timer-turn-off-btn" onclick="clearSleepTimer()">Turn Off Timer</button>
+    </div>
+  </div>
+
+  <!-- Time's Up Popup Modal -->
+  <div class="modal-overlay" id="timeUpModal">
+    <div class="timeup-dialog" onclick="event.stopPropagation()">
+      <div class="timeup-icon">⏰</div>
+      <div class="timeup-title">Time's Up!</div>
+      <div class="timeup-msg">The sleep timer has reached zero and radio playback was stopped.</div>
+      <div class="timeup-actions">
+        <button class="timeup-btn secondary" onclick="closeTimeUpModal()">Close</button>
+        <button class="timeup-btn primary" onclick="closeTimeUpModal()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <audio id="coreAudio" playsinline preload="none"></audio>
+</div>
+
+<script>
+  /* System Constants */
+  const REPO_OWNER = "sagarrawatssr";
+  const REPO_NAME = "air-fm-recorder";
+  const STREAM_URL = "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8";
+
+  /* Elements */
+  const coreAudio = document.getElementById("coreAudio");
+  const masterPlayBtn = document.getElementById("masterPlayBtn");
+  const playIcon = document.getElementById("playIcon");
+  const pauseIcon = document.getElementById("pauseIcon");
+  const livePillBtn = document.getElementById("livePillBtn");
+  const streamStateLabel = document.getElementById("streamStateLabel");
+  const trackHeadline = document.getElementById("trackHeadline");
+  const trackSubtitle = document.getElementById("trackSubtitle");
+  const sweepNextBtn = document.getElementById("sweepNextBtn");
+  const ytScrubContainer = document.getElementById("ytScrubContainer");
+  const progressBar = document.getElementById("progressBar");
+  const scrubThumb = document.getElementById("scrubThumb");
+  const scrubTooltip = document.getElementById("scrubTooltip");
+  const currentTimeDisplay = document.getElementById("currentTimeDisplay");
+  const totalDurationDisplay = document.getElementById("totalDurationDisplay");
+  const speedPill = document.getElementById("speedPill");
+  const speedLabel = document.getElementById("speedLabel");
+  const toastAlert = document.getElementById("toastAlert");
+  const toastMessage = document.getElementById("toastMessage");
+  const timelineTrack = document.getElementById("timelineTrack");
+  const canvas = document.getElementById("visualizerCanvas");
+  const ctx = canvas.getContext("2d");
+
+  let hlsInstance = null;
+  let activeIndex = -1; 
+  let currentSpeedIndex = 1;
+  const speedOptions = [0.75, 1.0, 1.25, 1.5, 2.0];
+  let isNativePlaying = false;
+  let currentDurationSec = 3600;
+  let currentPositionSec = 0;
+
+  // 0 = Repeat All (Default), 1 = Repeat 1, 2 = Repeat Off
+  let repeatMode = 0;
+  let isShuffle = false;
+
+  // Sleep Timer Globals
+  let sleepTargetTimestamp = null;
+  let sleepIntervalId = null;
+
+  /* 12 Hourly Broadcast Segments */
+  const hourBlocks = [
+    { label: "07 - 08 AM", file: "hour_00.mp3" },
+    { label: "08 - 09 AM", file: "hour_01.mp3" },
+    { label: "09 - 10 AM", file: "hour_02.mp3" },
+    { label: "10 - 11 AM", file: "hour_03.mp3" },
+    { label: "11 - 12 PM", file: "hour_04.mp3" },
+    { label: "12 - 01 PM", file: "hour_05.mp3" },
+    { label: "01 - 02 PM", file: "hour_06.mp3" },
+    { label: "02 - 03 PM", file: "hour_07.mp3" },
+    { label: "03 - 04 PM", file: "hour_08.mp3" },
+    { label: "04 - 05 PM", file: "hour_09.mp3" },
+    { label: "05 - 06 PM", file: "hour_10.mp3" },
+    { label: "06 - 07 PM", file: "hour_11.mp3" }
+  ];
+
+  /* 30-Day Rolling Date Calendar Boundaries */
+  const now = new Date();
+  const past30Days = new Date();
+  past30Days.setDate(now.getDate() - 30);
+
+  function toLocalYMDString(d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  let selectedDate = new Date();
+  let tempDialogDate = new Date();
+  let calendarViewingMonth = new Date().getMonth();
+  let calendarViewingYear = new Date().getFullYear();
+
+  function formatPrettyDate(d) {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
+  function updateDateHeaders() {
+    const formatted = formatPrettyDate(selectedDate);
+    document.getElementById("calendarDateDisplay").innerText = formatted;
+    document.getElementById("gcalHeaderDate").innerText = formatted;
+
+    const todayStr = toLocalYMDString(now);
+    const selStr = toLocalYMDString(selectedDate);
+    const yest = new Date(); yest.setDate(yest.getDate() - 1);
+
+    document.getElementById("chipToday").classList.toggle("active", selStr === todayStr);
+    document.getElementById("chipYesterday").classList.toggle("active", selStr === toLocalYMDString(yest));
+  }
+
+  function openCueSheet() {
+    const dateStr = toLocalYMDString(selectedDate);
+    const cueSheetUrl = `https://cuesheets.prasarbharati.org/su_viewSheetByPb/243/${dateStr}`;
+    
+    if (window.NativeAudioBridge && window.NativeAudioBridge.openExternalBrowser) {
+      window.NativeAudioBridge.openExternalBrowser(cueSheetUrl);
+    } else {
+      window.open(cueSheetUrl, '_blank');
+    }
+  }
+
+  function openCalendarDialog() {
+    tempDialogDate = new Date(selectedDate);
+    calendarViewingMonth = selectedDate.getMonth();
+    calendarViewingYear = selectedDate.getFullYear();
+    renderCalendarGrid();
+    document.getElementById("calendarModal").style.display = "flex";
+  }
+
+  function closeCalendarDialog(e) {
+    if (!e || e.target.id === "calendarModal" || e.target.classList.contains("gcal-btn")) {
+      document.getElementById("calendarModal").style.display = "none";
+    }
+  }
+
+  function prevCalendarMonth() {
+    calendarViewingMonth--;
+    if (calendarViewingMonth < 0) {
+      calendarViewingMonth = 11;
+      calendarViewingYear--;
+    }
+    renderCalendarGrid();
+  }
+
+  function nextCalendarMonth() {
+    calendarViewingMonth++;
+    if (calendarViewingMonth > 11) {
+      calendarViewingMonth = 0;
+      calendarViewingYear++;
+    }
+    renderCalendarGrid();
+  }
+
+  function renderCalendarGrid() {
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    document.getElementById("gcalMonthYear").innerText = `${monthNames[calendarViewingMonth]} ${calendarViewingYear}`;
+
+    const grid = document.getElementById("gcalGrid");
+    grid.innerHTML = "";
+
+    const firstDayIndex = new Date(calendarViewingYear, calendarViewingMonth, 1).getDay();
+    const startOffset = (firstDayIndex + 6) % 7;
+    const daysInMonth = new Date(calendarViewingYear, calendarViewingMonth + 1, 0).getDate();
+
+    for (let i = 0; i < startOffset; i++) {
+      const empty = document.createElement("div");
+      empty.className = "gcal-cell empty";
+      grid.appendChild(empty);
+    }
+
+    const todayStr = toLocalYMDString(now);
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const cellDate = new Date(calendarViewingYear, calendarViewingMonth, day);
+      const cellDateStr = toLocalYMDString(cellDate);
+
+      const cell = document.createElement("div");
+      cell.className = "gcal-cell";
+      cell.innerText = day;
+
+      if (cellDateStr === todayStr) cell.classList.add("today");
+      if (cellDateStr === toLocalYMDString(tempDialogDate)) cell.classList.add("selected");
+
+      if (cellDate > now || cellDate < past30Days) {
+        cell.classList.add("disabled");
+      } else {
+        cell.onclick = () => {
+          tempDialogDate = cellDate;
+          document.getElementById("gcalHeaderDate").innerText = formatPrettyDate(tempDialogDate);
+          renderCalendarGrid();
+        };
+      }
+      grid.appendChild(cell);
+    }
+  }
+
+  function confirmCalendarDate() {
+    selectedDate = new Date(tempDialogDate);
+    updateDateHeaders();
+    closeCalendarDialog();
+    if (activeIndex >= 0) playArchive(activeIndex);
+  }
+
+  function applyQuickDate(daysAgo) {
+    const d = new Date();
+    d.setDate(d.getDate() - daysAgo);
+    selectedDate = d;
+    updateDateHeaders();
+    if (activeIndex >= 0) playArchive(activeIndex);
+  }
+
+  function stepCalendarDay(offset) {
+    const cur = new Date(selectedDate);
+    cur.setDate(cur.getDate() + offset);
+    if (cur >= past30Days && cur <= now) {
+      selectedDate = cur;
+      updateDateHeaders();
+      if (activeIndex >= 0) playArchive(activeIndex);
+    }
+  }
+
+  window.onNativeAudioError = function(errorMsg) {
+    const dateStr = toLocalYMDString(selectedDate);
+    const slot = activeIndex >= 0 ? hourBlocks[activeIndex].label : "Hour";
+    toastMessage.innerText = `Recording not found for ${slot} (${dateStr}). It may still be recording or expired.`;
+    toastAlert.style.display = "flex";
+    setPlayState(false);
+  };
+
+  coreAudio.addEventListener("error", () => {
+    window.onNativeAudioError();
+  });
+
+  /* Render 12 Horizontal Hourly Cards */
+  hourBlocks.forEach((slot, idx) => {
+    const card = document.createElement("div");
+    card.className = "slot-card";
+    card.id = `slot-card-${idx}`;
+    card.innerHTML = `
+      <span class="slot-num-badge">Slot ${idx + 1}</span>
+      <div class="slot-time-text">${slot.label}</div>
+      <div class="slot-desc">Archive Slice</div>
+    `;
+    card.onclick = () => playArchive(idx);
+    timelineTrack.appendChild(card);
+  });
+
+  /* PROGRESS SYNC (Native Android Bridge) */
+  window.onNativeProgressSync = function(curMs, durMs, isPlaying) {
+    isNativePlaying = isPlaying;
+    setPlayState(isPlaying);
+
+    if (activeIndex === -1) {
+      currentTimeDisplay.innerText = "00:00";
+      totalDurationDisplay.innerText = "LIVE";
+      progressBar.style.width = "100%";
+      scrubThumb.style.left = "100%";
+      return;
+    }
+
+    currentDurationSec = durMs > 0 ? (durMs / 1000) : 3600;
+    currentPositionSec = Math.max(0, Math.min(curMs / 1000, currentDurationSec));
+    currentTimeDisplay.innerText = formatSeconds(currentPositionSec);
+    totalDurationDisplay.innerText = formatSeconds(currentDurationSec);
+
+    if (!isScrubbing && !isWaveDragging) {
+      const pct = Math.min(100, Math.max(0, (currentPositionSec / currentDurationSec) * 100));
+      progressBar.style.width = pct + "%";
+      scrubThumb.style.left = pct + "%";
+    }
+
+    if (durMs > 0 && curMs >= durMs - 1200) {
+      handleTrackEnd();
+    }
+  };
+
+  /* PROGRESS SYNC (Web Browser HTML5 Audio Fallback) */
+  coreAudio.addEventListener("timeupdate", () => {
+    if (window.NativeAudioBridge || isScrubbing || isWaveDragging) return;
+
+    if (activeIndex === -1) {
+      currentTimeDisplay.innerText = "00:00";
+      totalDurationDisplay.innerText = "LIVE";
+      progressBar.style.width = "100%";
+      scrubThumb.style.left = "100%";
+      return;
+    }
+
+    const cur = coreAudio.currentTime || 0;
+    const dur = (coreAudio.duration && !isNaN(coreAudio.duration) && coreAudio.duration > 0) 
+                 ? coreAudio.duration 
+                 : (currentDurationSec || 3600);
+
+    currentPositionSec = cur;
+    currentDurationSec = dur;
+
+    currentTimeDisplay.innerText = formatSeconds(cur);
+    totalDurationDisplay.innerText = formatSeconds(dur);
+
+    if (dur > 0) {
+      const pct = Math.min(100, Math.max(0, (cur / dur) * 100));
+      progressBar.style.width = pct + "%";
+      scrubThumb.style.left = pct + "%";
+    }
+  });
+
+  window.handleNativeAction = function(action) {
+    if (action === "next") playNext();
+    else if (action === "prev") playPrevious();
+  };
+
+  window.onNativeSleepTimerFinished = function() {
+    triggerSleepTimerFinished();
+  };
+
+  function playViaNativeBridge(url, title, sub, isLive) {
+    if (window.NativeAudioBridge) {
+      toastAlert.style.display = "none";
+      window.NativeAudioBridge.play(url, title, sub, isLive);
+      isNativePlaying = true;
+      setPlayState(true);
+      return true;
+    }
+    return false;
+  }
+
+  function switchToLiveMode() {
+    activeIndex = -1;
+    clearTimelineHighlights();
+    toastAlert.style.display = "none";
+
+    livePillBtn.classList.add("active");
+    streamStateLabel.innerText = "Live Broadcast";
+    trackHeadline.innerText = "AIR FM Rainbow Delhi (102.6 MHz)";
+    trackSubtitle.innerText = "Real-time live edge broadcast";
+    sweepNextBtn.disabled = true;
+
+    speedPill.classList.add("locked");
+    speedLabel.innerText = "1.0x";
+    if (window.NativeAudioBridge) window.NativeAudioBridge.setPlaybackSpeed(1.0);
+    else coreAudio.playbackRate = 1.0;
+
+    progressBar.style.width = "100%";
+    scrubThumb.style.left = "100%";
+    currentTimeDisplay.innerText = "00:00";
+    totalDurationDisplay.innerText = "LIVE";
+
+    const freshLiveUrl = `${STREAM_URL}?ts=${Date.now()}`;
+    if (playViaNativeBridge(freshLiveUrl, "AIR FM Rainbow 102.6", "Live Broadcast", true)) return;
+    loadSource(freshLiveUrl, true);
+  }
+
+  function playArchive(index) {
+    activeIndex = index;
+    clearTimelineHighlights();
+    toastAlert.style.display = "none";
+
+    const card = document.getElementById(`slot-card-${index}`);
+    if (card) {
+      card.classList.add("active");
+      card.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    }
+
+    livePillBtn.classList.remove("active");
+    streamStateLabel.innerText = "Archive Mode";
+    sweepNextBtn.disabled = false;
+
+    const chosenDate = toLocalYMDString(selectedDate);
+    const slot = hourBlocks[index];
+
+    trackHeadline.innerText = `FM Rainbow: ${slot.label}`;
+    trackSubtitle.innerText = `Recorded Archive • ${chosenDate}`;
+
+    speedPill.classList.remove("locked");
+    const chosenRate = speedOptions[currentSpeedIndex];
+    speedLabel.innerText = `${chosenRate}x`;
+    if (window.NativeAudioBridge) window.NativeAudioBridge.setPlaybackSpeed(chosenRate);
+    else coreAudio.playbackRate = chosenRate;
+
+    currentPositionSec = 0;
+    currentDurationSec = 3600;
+    progressBar.style.width = "0%";
+    scrubThumb.style.left = "0%";
+    currentTimeDisplay.innerText = "00:00";
+    totalDurationDisplay.innerText = "60:00";
+
+    const fileUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/archive-${chosenDate}/${chosenDate}_${hourBlocks[index].file}`;
+    if (playViaNativeBridge(fileUrl, `FM Rainbow: ${slot.label}`, `Recorded Archive (${chosenDate})`, false)) return;
+    loadSource(fileUrl, false);
+  }
+
+  function playNext() {
+    if (activeIndex === -1) return;
+    if (isShuffle) {
+      playArchive(Math.floor(Math.random() * hourBlocks.length));
+      return;
+    }
+    const nextIdx = (activeIndex + 1) % hourBlocks.length;
+    playArchive(nextIdx);
+  }
+
+  function playPrevious() {
+    if (activeIndex === -1) return;
+    const prevIdx = (activeIndex - 1 + hourBlocks.length) % hourBlocks.length;
+    playArchive(prevIdx);
+  }
+
+  function handleTrackEnd() {
+    if (repeatMode === 1) playArchive(activeIndex);
+    else if (repeatMode === 0) playNext();
+  }
+
+  function toggleShuffle() {
+    isShuffle = !isShuffle;
+    document.getElementById("btnShuffle").classList.toggle("active", isShuffle);
+  }
+
+  function cycleRepeatMode() {
+    repeatMode = (repeatMode + 1) % 3;
+    updateRepeatUI();
+  }
+
+  function updateRepeatUI() {
+    const btn = document.getElementById("btnRepeat");
+    const badge = document.getElementById("repeatBadge");
+
+    if (repeatMode === 0) {
+      btn.classList.add("active");
+      badge.innerText = "ALL";
+      badge.style.color = "#fff";
+      badge.style.background = "#1d4ed8";
+    } else if (repeatMode === 1) {
+      btn.classList.add("active");
+      badge.innerText = "1";
+      badge.style.color = "#fff";
+      badge.style.background = "#2563eb";
+    } else {
+      btn.classList.remove("active");
+      badge.innerText = "OFF";
+      badge.style.color = "#64748b";
+      badge.style.background = "#0f172a";
+    }
+  }
+
+  function changeVolume(val) {
+    const vol = parseFloat(val);
+    if (window.NativeAudioBridge) {
+      window.NativeAudioBridge.setVolume(vol);
+    } else {
+      coreAudio.volume = vol;
+    }
+  }
+
+  function cyclePlaybackSpeed() {
+    if (activeIndex === -1) return;
+    currentSpeedIndex = (currentSpeedIndex + 1) % speedOptions.length;
+    const newRate = speedOptions[currentSpeedIndex];
+    speedLabel.innerText = `${newRate}x`;
+    if (window.NativeAudioBridge) {
+      window.NativeAudioBridge.setPlaybackSpeed(newRate);
+    } else {
+      coreAudio.playbackRate = newRate;
+    }
+  }
+
+  function loadSource(url, isLive) {
+    if (hlsInstance) {
+      hlsInstance.destroy();
+      hlsInstance = null;
+    }
+
+    if (isLive) {
+      if (Hls.isSupported()) {
+        hlsInstance = new Hls({ liveSyncDurationCount: 3, enableWorker: true });
+        hlsInstance.loadSource(url);
+        hlsInstance.attachMedia(coreAudio);
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+          coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
+        });
+      } else if (coreAudio.canPlayType("application/vnd.apple.mpegurl")) {
+        coreAudio.src = url;
+        coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
+      }
+    } else {
+      coreAudio.src = url;
+      coreAudio.playbackRate = speedOptions[currentSpeedIndex];
+      coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
+    }
+  }
+
+  function togglePlayPause() {
+    if (window.NativeAudioBridge) {
+      window.NativeAudioBridge.toggle();
+      return;
+    }
+    if (coreAudio.paused) {
+      coreAudio.play().then(() => setPlayState(true)).catch(() => {});
+    } else {
+      coreAudio.pause();
+      setPlayState(false);
+    }
+  }
+
+  function explicitPause() {
+    if (window.NativeAudioBridge && window.NativeAudioBridge.pause) {
+      window.NativeAudioBridge.pause();
+    } else if (window.NativeAudioBridge) {
+      if (isNativePlaying) window.NativeAudioBridge.toggle();
+    }
+    if (!coreAudio.paused) {
+      coreAudio.pause();
+    }
+    isNativePlaying = false;
+    setPlayState(false);
+  }
+
+  function setPlayState(isPlaying) {
+    playIcon.style.display = isPlaying ? "none" : "block";
+    pauseIcon.style.display = isPlaying ? "block" : "none";
+    masterPlayBtn.classList.toggle("is-playing", isPlaying);
+  }
+
+  /* PROTECTED STEPAUDIO */
+  function stepAudio(seconds) {
+    if (activeIndex === -1) return;
+    if (window.NativeAudioBridge) {
+      window.NativeAudioBridge.seekDelta(seconds * 1000);
+      return;
+    }
+    const maxDur = (coreAudio.duration && !isNaN(coreAudio.duration) && coreAudio.duration > 0) 
+                   ? coreAudio.duration 
+                   : (currentDurationSec || 3600);
+    const cur = coreAudio.currentTime || 0;
+    coreAudio.currentTime = Math.max(0, Math.min(maxDur, cur + seconds));
+  }
+
+  function formatSeconds(sec) {
+    if (isNaN(sec) || !isFinite(sec)) return "00:00";
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+
+  function clearTimelineHighlights() {
+    document.querySelectorAll(".slot-card").forEach(c => c.classList.remove("active"));
+  }
+
+  /* SCRUB BAR HANDLER */
+  let isScrubbing = false;
+
+  function handleScrubPointer(e) {
+    if (activeIndex === -1) return;
+    const rect = ytScrubContainer.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const targetSec = fraction * currentDurationSec;
+
+    progressBar.style.width = `${fraction * 100}%`;
+    scrubThumb.style.left = `${fraction * 100}%`;
+    scrubTooltip.style.display = "block";
+    scrubTooltip.style.left = `${fraction * 100}%`;
+    scrubTooltip.innerText = formatSeconds(targetSec);
+    return targetSec;
+  }
+
+  ytScrubContainer.addEventListener("pointerdown", (e) => {
+    if (activeIndex === -1) return;
+    isScrubbing = true;
+    const targetSec = handleScrubPointer(e);
+    if (window.NativeAudioBridge) {
+      window.NativeAudioBridge.seekTo(targetSec * 1000);
+    } else {
+      coreAudio.currentTime = targetSec;
+    }
+  });
+
+  window.addEventListener("pointermove", (e) => {
+    if (!isScrubbing) return;
+    const targetSec = handleScrubPointer(e);
+    if (window.NativeAudioBridge) {
+      window.NativeAudioBridge.seekTo(targetSec * 1000);
+    } else {
+      coreAudio.currentTime = targetSec;
+    }
+  });
+
+  window.addEventListener("pointerup", () => {
+    if (isScrubbing) {
+      isScrubbing = false;
+      scrubTooltip.style.display = "none";
+    }
+  });
+
+  /* TOUCH SCREEN SEEK / HOLD */
+  const touchDeckScreen = document.getElementById("touchDeckScreen");
+  let waveTouchStartX = 0;
+  let waveBaseTime = 0;
+  let isWaveDragging = false;
+  let waveDragTargetSec = 0;
+
+  touchDeckScreen.addEventListener("touchstart", (e) => {
+    if (activeIndex === -1) return;
+    waveTouchStartX = e.touches[0].clientX;
+    waveBaseTime = (window.NativeAudioBridge) ? currentPositionSec : (coreAudio.currentTime || currentPositionSec);
+    isWaveDragging = true;
+    waveDragTargetSec = waveBaseTime;
+  }, { passive: true });
+
+  touchDeckScreen.addEventListener("touchmove", (e) => {
+    if (!isWaveDragging || activeIndex === -1) return;
+    const deltaX = e.touches[0].clientX - waveTouchStartX;
+    const deltaSec = (deltaX / 150) * 60;
+    waveDragTargetSec = Math.max(0, Math.min(currentDurationSec, waveBaseTime + deltaSec));
+
+    const pct = (waveDragTargetSec / currentDurationSec) * 100;
+    progressBar.style.width = pct + "%";
+    scrubThumb.style.left = pct + "%";
+
+    scrubTooltip.style.display = "block";
+    scrubTooltip.style.left = pct + "%";
+    scrubTooltip.innerText = `${deltaSec >= 0 ? '+' : ''}${Math.round(deltaSec)}s (${formatSeconds(waveDragTargetSec)})`;
+  }, { passive: true });
+
+  touchDeckScreen.addEventListener("touchend", () => {
+    if (isWaveDragging && activeIndex !== -1) {
+      if (window.NativeAudioBridge) {
+        window.NativeAudioBridge.seekTo(waveDragTargetSec * 1000);
+      } else {
+        coreAudio.currentTime = waveDragTargetSec;
+      }
+    }
+    isWaveDragging = false;
+    scrubTooltip.style.display = "none";
+  });
+
+  /* DOUBLE TAP SKIPS */
+  let lastTapLeft = 0;
+  let lastTapRight = 0;
+
+  document.getElementById("skipHalfLeft").addEventListener("click", () => {
+    const nowTime = Date.now();
+    if (nowTime - lastTapLeft < 300) {
+      stepAudio(-10);
+      const rip = document.getElementById("rippleLeft");
+      rip.classList.add("show");
+      setTimeout(() => rip.classList.remove("show"), 300);
+      lastTapLeft = 0;
+    } else {
+      lastTapLeft = nowTime;
+    }
+  });
+
+  document.getElementById("skipHalfRight").addEventListener("click", () => {
+    const nowTime = Date.now();
+    if (nowTime - lastTapRight < 300) {
+      stepAudio(10);
+      const rip = document.getElementById("rippleRight");
+      rip.classList.add("show");
+      setTimeout(() => rip.classList.remove("show"), 300);
+      lastTapRight = 0;
+    } else {
+      lastTapRight = nowTime;
+    }
+  });
+
+  /* SLEEP TIMER CONTROLLER (ACTIVE POLLING & DIRECT HALT) */
+  function openSleepModal() {
+    document.getElementById("sleepModal").style.display = "flex";
+  }
+
+  function closeSleepModal(e) {
+    if (!e || e.target.id === "sleepModal" || e.target.classList.contains("sheet-close")) {
+      document.getElementById("sleepModal").style.display = "none";
+    }
+  }
+
+  function setCustomSleepTimer() {
+    const val = parseInt(document.getElementById("customMinutesInput").value);
+    if (!isNaN(val) && val > 0) {
+      setSleepTimer(val);
+    }
+  }
+
+  function setSleepTimer(minutes) {
+    clearSleepTimer();
+    const btn = document.getElementById("sleepTimerBtn");
+    const millis = minutes * 60 * 1000;
+    sleepTargetTimestamp = Date.now() + millis;
+    btn.classList.add("active");
+
+    updateTimerDisplay();
+
+    // Polling interval executes every second and halts immediately upon expiration
+    sleepIntervalId = setInterval(() => {
+      const remainingMs = sleepTargetTimestamp - Date.now();
+      if (remainingMs <= 0) {
+        triggerSleepTimerFinished();
+      } else {
+        updateTimerDisplay();
+      }
+    }, 1000);
+
+    // Also trigger native service handler if inside APK
+    if (window.NativeAudioBridge && window.NativeAudioBridge.startSleepTimer) {
+      window.NativeAudioBridge.startSleepTimer(millis);
+    }
+
+    closeSleepModal();
+  }
+
+  function triggerSleepTimerFinished() {
+    explicitPause();
+    clearSleepTimer();
+    openTimeUpModal();
+  }
+
+  function openTimeUpModal() {
+    document.getElementById("timeUpModal").style.display = "flex";
+  }
+
+  function closeTimeUpModal() {
+    document.getElementById("timeUpModal").style.display = "none";
+  }
+
+  function updateTimerDisplay() {
+    if (!sleepTargetTimestamp) return;
+    const remainingMs = sleepTargetTimestamp - Date.now();
+    if (remainingMs <= 0) {
+      document.getElementById("sleepTimerLabel").innerText = "00:00";
+      return;
+    }
+    const mins = Math.floor(remainingMs / 60000);
+    const secs = Math.floor((remainingMs % 60000) / 1000);
+    document.getElementById("sleepTimerLabel").innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  }
+
+  function clearSleepTimer() {
+    if (sleepIntervalId) {
+      clearInterval(sleepIntervalId);
+      sleepIntervalId = null;
+    }
+    sleepTargetTimestamp = null;
+
+    if (window.NativeAudioBridge && window.NativeAudioBridge.cancelSleepTimer) {
+      window.NativeAudioBridge.cancelSleepTimer();
+    }
+
+    const btn = document.getElementById("sleepTimerBtn");
+    btn.classList.remove("active");
+    document.getElementById("sleepTimerLabel").innerText = "Timer";
+    closeSleepModal();
+  }
+
+  /* Audio Canvas Visualizer */
+  function resizeCanvas() {
+    canvas.width = canvas.parentElement.clientWidth;
+    canvas.height = canvas.parentElement.clientHeight;
+  }
+  window.addEventListener("resize", resizeCanvas);
+  resizeCanvas();
+
+  let phase = 0;
+  function drawVisualizer() {
+    requestAnimationFrame(drawVisualizer);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const isPlaying = isNativePlaying || (!coreAudio.paused && coreAudio.currentTime > 0);
+    const barCount = 32;
+    const gap = 3;
+    const barWidth = (canvas.width - gap * (barCount - 1)) / barCount;
+
+    if (isPlaying) phase += 0.085;
+
+    for (let i = 0; i < barCount; i++) {
+      let h = 4;
+      if (isPlaying) {
+        const wave1 = Math.sin(phase + i * 0.35);
+        const wave2 = Math.cos(phase * 0.75 + i * 0.2);
+        const amp = Math.abs(wave1 * 0.65 + wave2 * 0.35);
+        h = Math.max(4, amp * (canvas.height - 12));
+      }
+
+      const x = i * (barWidth + gap);
+      const y = (canvas.height - h) / 2;
+
+      const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      if (activeIndex === -1) {
+        grad.addColorStop(0, '#ff0844');
+        grad.addColorStop(1, '#ffb199');
+      } else {
+        grad.addColorStop(0, '#60a5fa');
+        grad.addColorStop(1, '#06b6d4');
+      }
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(x, y, barWidth, h, 2);
+      ctx.fill();
+    }
+  }
+  drawVisualizer();
+
+  /* Initial Boot */
+  updateDateHeaders();
+  repeatMode = 0;
+  updateRepeatUI();
+  switchToLiveMode();
+</script>
+</body>
+</html>
