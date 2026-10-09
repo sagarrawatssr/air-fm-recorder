@@ -542,6 +542,7 @@
 
   <div class="player-deck">
     <div class="deck-top-row">
+      <!-- FIXED: Changed Mode() to switchToLiveMode() -->
       <button id="livePillBtn" class="live-chip-btn active" onclick="switchToLiveMode()">
         <span class="pulse-dot"></span> LIVE
       </button>
@@ -623,7 +624,8 @@
 
   <div id="toastAlert" class="toast-alert">
     <p id="toastMessage">Recording not found for this date &amp; hour.</p>
-    <button onclick="Mode()">Go Live</button>
+    <!-- FIXED: Changed Mode() to switchToLiveMode() -->
+    <button onclick="switchToLiveMode()">Go Live</button>
   </div>
 
   <!-- Date Stepper with Material Calendar Picker -->
@@ -731,41 +733,44 @@
   /* System Constants */
   const REPO_OWNER = "sagarrawatssr";
   const REPO_NAME = "air-fm-recorder";
- // GitHub Raw Configuration Source
-const GITHUB_CONFIG_URL = "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/streams.json";
+  const GITHUB_CONFIG_URL = "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/streams.json";
 
-// Default stream array (used if remote config is unreachable)
-let streamList = [
-  "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi02/air002_Auto.m3u8",
-  "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8",
-  "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio004_Auto.m3u8"
-];
-let currentStreamIndex = 0;
+  // BitGravity and Akashvani HLS feeds support direct browser CORS without proxy blocks
+  let streamList = [
+    "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8",
+    "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio004_Auto.m3u8",
+    "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi02/air002_Auto.m3u8"
+  ];
+  let currentStreamIndex = 0;
 
-// 1. Fetch latest stream URLs from GitHub repository
-async function syncStreamUrlsFromGitHub() {
-  try {
-    const res = await fetch(`${GITHUB_CONFIG_URL}?nocache=${Date.now()}`);
-    if (res.ok) {
-      const data = await res.json();
-      const urls = [];
-      if (data.active_stream) urls.push(data.active_stream);
-      if (Array.isArray(data.fallback_streams)) urls.push(...data.fallback_streams);
-      
-      if (urls.length > 0) {
-        streamList = urls;
-        console.log("Successfully synced live stream mirrors:", streamList);
+  async function syncStreamUrlsFromGitHub() {
+    try {
+      const res = await fetch(`${GITHUB_CONFIG_URL}?nocache=${Date.now()}`);
+      if (res.ok) {
+        const data = await res.json();
+        const urls = [];
+        if (data.active_stream) urls.push(data.active_stream);
+        if (Array.isArray(data.fallback_streams)) urls.push(...data.fallback_streams);
+        
+        if (urls.length > 0) {
+          // If in web browser, deprioritize CloudFront to avoid CORS 403 blocks
+          if (!window.NativeAudioBridge) {
+            urls.sort((a, b) => (a.includes("cloudfront") ? 1 : 0) - (b.includes("cloudfront") ? 1 : 0));
+          }
+          streamList = urls;
+          console.log("Synced live stream mirrors:", streamList);
+        }
       }
+    } catch (err) {
+      console.warn("Could not fetch remote streams.json, using defaults.", err);
     }
-  } catch (err) {
-    console.warn("Could not fetch remote streams.json, falling back to local defaults.", err);
   }
-}
-syncStreamUrlsFromGitHub();
-  
-function getCurrentLiveUrl() {
-  return streamList[currentStreamIndex % streamList.length];
-}
+  syncStreamUrlsFromGitHub();
+    
+  function getCurrentLiveUrl() {
+    return streamList[currentStreamIndex % streamList.length];
+  }
+
   /* Elements */
   const coreAudio = document.getElementById("coreAudio");
   const masterPlayBtn = document.getElementById("masterPlayBtn");
@@ -798,15 +803,16 @@ function getCurrentLiveUrl() {
   let currentDurationSec = 3600;
   let currentPositionSec = 0;
 
-  // 0 = Repeat All (Default), 1 = Repeat 1, 2 = Repeat Off
   let repeatMode = 0;
   let isShuffle = false;
 
-  // Sleep Timer Globals
   let sleepTargetTimestamp = null;
   let sleepIntervalId = null;
 
-  /* 12 Hourly Broadcast Segments */
+  let liveStallCheckTimer = null;
+  let lastKnownTime = -1;
+  let stallCount = 0;
+
   const hourBlocks = [
     { label: "07 - 08 AM", file: "hour_00.mp3" },
     { label: "08 - 09 AM", file: "hour_01.mp3" },
@@ -822,7 +828,6 @@ function getCurrentLiveUrl() {
     { label: "06 - 07 PM", file: "hour_11.mp3" }
   ];
 
-  /* 30-Day Rolling Date Calendar Boundaries */
   const now = new Date();
   const past30Days = new Date();
   past30Days.setDate(now.getDate() - 30);
@@ -976,9 +981,6 @@ function getCurrentLiveUrl() {
     setPlayState(false);
   };
 
-
-
-  /* Render 12 Horizontal Hourly Cards */
   hourBlocks.forEach((slot, idx) => {
     const card = document.createElement("div");
     card.className = "slot-card";
@@ -992,7 +994,6 @@ function getCurrentLiveUrl() {
     timelineTrack.appendChild(card);
   });
 
-  /* PROGRESS SYNC (Native Android Bridge) */
   window.onNativeProgressSync = function(curMs, durMs, isPlaying) {
     isNativePlaying = isPlaying;
     setPlayState(isPlaying);
@@ -1021,7 +1022,6 @@ function getCurrentLiveUrl() {
     }
   };
 
-  /* PROGRESS SYNC (Web Browser HTML5 Audio Fallback) */
   coreAudio.addEventListener("timeupdate", () => {
     if (window.NativeAudioBridge || isScrubbing || isWaveDragging) return;
 
@@ -1070,115 +1070,114 @@ function getCurrentLiveUrl() {
     }
     return false;
   }
-  // 3. Fallback handler: auto-cycles to next stream when playback errors or stalls
-function onLiveStreamError() {
-  if (activeIndex === -1) {
-    currentStreamIndex = (currentStreamIndex + 1) % streamList.length;
-    console.warn("Stream failed or unreachable. Trying fallback URL:", getCurrentLiveUrl());
-    
-    setTimeout(() => {
-      if (activeIndex === -1) {
-        switchToLiveMode();
-      }
-    }, 1500);
-  }
-}
 
-  // 2. Watchdog: Catches silent or stalled streams transmitting empty data
-function startLiveStallWatchdog() {
-  stopLiveStallWatchdog();
-  lastKnownTime = -1;
-  stallCount = 0;
-
-  liveStallCheckTimer = setInterval(() => {
-    if (activeIndex !== -1) {
-      stopLiveStallWatchdog();
-      return;
+  function onLiveStreamError() {
+    if (activeIndex === -1) {
+      currentStreamIndex = (currentStreamIndex + 1) % streamList.length;
+      console.warn("Stream failed. Attempting next mirror:", getCurrentLiveUrl());
+      
+      setTimeout(() => {
+        if (activeIndex === -1) {
+          switchToLiveMode();
+        }
+      }, 1200);
     }
+  }
 
-    // Only inspect when playback should be active
-    const isPlaying = isNativePlaying || (!coreAudio.paused && !coreAudio.ended);
-    if (!isPlaying) return;
+  function startLiveStallWatchdog() {
+    stopLiveStallWatchdog();
+    lastKnownTime = -1;
+    stallCount = 0;
 
-    const curTime = coreAudio.currentTime || 0;
-
-    // If currentTime hasn't moved for 6-8 seconds, the stream is dead/empty
-    if (lastKnownTime !== -1 && curTime === lastKnownTime) {
-      stallCount++;
-      if (stallCount >= 4) { // 4 checks * 2s = 8 seconds stalled
-        console.warn("Detected frozen/empty audio stream.");
+    liveStallCheckTimer = setInterval(() => {
+      if (activeIndex !== -1) {
         stopLiveStallWatchdog();
-        onLiveStreamError();
+        return;
       }
-    } else {
-      lastKnownTime = curTime;
-      stallCount = 0;
-    }
-  }, 2000);
-}
 
-function stopLiveStallWatchdog() {
-  if (liveStallCheckTimer) {
-    clearInterval(liveStallCheckTimer);
-    liveStallCheckTimer = null;
-  }
-}
+      const isPlaying = isNativePlaying || (!coreAudio.paused && !coreAudio.ended);
+      if (!isPlaying) return;
 
-// 3. Audio Loader with Hls.js Error Binding
-function loadSource(url, isLive) {
-  if (hlsInstance) {
-    hlsInstance.destroy();
-    hlsInstance = null;
-  }
+      const curTime = coreAudio.currentTime || 0;
 
-  if (isLive) {
-    startLiveStallWatchdog();
-
-    if (Hls.isSupported()) {
-      hlsInstance = new Hls({ liveSyncDurationCount: 3, enableWorker: true });
-      hlsInstance.loadSource(url);
-      hlsInstance.attachMedia(coreAudio);
-
-      hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-        coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
-      });
-
-      // Catches playlist 404s, CORS drops, or decoding faults
-      hlsInstance.on(Hls.Events.ERROR, (event, data) => {
-        if (data.fatal) {
+      if (lastKnownTime !== -1 && curTime === lastKnownTime) {
+        stallCount++;
+        if (stallCount >= 4) {
+          console.warn("Detected frozen audio stream.");
+          stopLiveStallWatchdog();
           onLiveStreamError();
         }
-      });
-    } else if (coreAudio.canPlayType("application/vnd.apple.mpegurl")) {
+      } else {
+        lastKnownTime = curTime;
+        stallCount = 0;
+      }
+    }, 2000);
+  }
+
+  function stopLiveStallWatchdog() {
+    if (liveStallCheckTimer) {
+      clearInterval(liveStallCheckTimer);
+      liveStallCheckTimer = null;
+    }
+  }
+
+  function loadSource(url, isLive) {
+    if (hlsInstance) {
+      hlsInstance.destroy();
+      hlsInstance = null;
+    }
+
+    if (isLive) {
+      startLiveStallWatchdog();
+
+      if (Hls.isSupported()) {
+        hlsInstance = new Hls({ 
+          liveSyncDurationCount: 3, 
+          enableWorker: true,
+          xhrSetup: function(xhr, u) {
+            xhr.withCredentials = false;
+          }
+        });
+        hlsInstance.loadSource(url);
+        hlsInstance.attachMedia(coreAudio);
+
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+          coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
+        });
+
+        hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            console.warn("HLS fatal error encountered:", data.type, data.details);
+            onLiveStreamError();
+          }
+        });
+      } else if (coreAudio.canPlayType("application/vnd.apple.mpegurl")) {
+        coreAudio.src = url;
+        coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
+      }
+    } else {
+      stopLiveStallWatchdog();
       coreAudio.src = url;
+      coreAudio.playbackRate = speedOptions[currentSpeedIndex];
       coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
     }
-  } else {
-    stopLiveStallWatchdog();
-    coreAudio.src = url;
-    coreAudio.playbackRate = speedOptions[currentSpeedIndex];
-    coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
   }
-}
 
-// Bind native browser audio element error event
-coreAudio.addEventListener("error", onLiveStreamError);
+  coreAudio.addEventListener("error", () => {
+    if (activeIndex === -1) {
+      onLiveStreamError();
+    }
+  });
 
-function getBrowserCompatibleUrl(rawUrl) {
-  // If running inside Android APK NativeAudioBridge, use direct stream URL
-  if (window.NativeAudioBridge) {
+  function getBrowserCompatibleUrl(rawUrl) {
+    if (window.NativeAudioBridge) {
+      return rawUrl;
+    }
+    // Proxies like corsproxy fail on CloudFront with 403. Return direct stream URL.
     return rawUrl;
   }
 
-  // CloudFront blocks web browsers due to missing CORS headers.
-  // Wrap with corsproxy only for CloudFront URLs when in standard web browser:
-  if (rawUrl.includes("cloudfront.net")) {
-    return `https://corsproxy.io/?url=${encodeURIComponent(rawUrl)}`;
-  }
-
-  return rawUrl;
-}
-function switchToLiveMode() {
+  function switchToLiveMode() {
     activeIndex = -1;
     clearTimelineHighlights();
     toastAlert.style.display = "none";
@@ -1199,16 +1198,16 @@ function switchToLiveMode() {
     currentTimeDisplay.innerText = "00:00";
     totalDurationDisplay.innerText = "LIVE";
 
-  const rawUrl = `${getCurrentLiveUrl()}?ts=${Date.now()}`;
+    const rawUrl = `${getCurrentLiveUrl()}?ts=${Date.now()}`;
 
-  // 1. Android Native App (ExoPlayer plays direct CloudFront stream without CORS restrictions)
-  if (playViaNativeBridge(rawUrl, "AIR FM Rainbow 102.6", "Live Broadcast", true)) {
-    return;
-  }
+    // Try Android App Bridge First
+    if (playViaNativeBridge(rawUrl, "AIR FM Rainbow 102.6", "Live Broadcast", true)) {
+      return;
+    }
 
-  // 2. Web Browser (Uses CORS Proxy to bypass browser blocking)
-  const browserUrl = getBrowserCompatibleUrl(rawUrl);
-  loadSource(browserUrl, true);
+    // Web Browser Playback
+    const browserUrl = getBrowserCompatibleUrl(rawUrl);
+    loadSource(browserUrl, true);
   }
 
   function playArchive(index) {
@@ -1324,8 +1323,6 @@ function switchToLiveMode() {
     }
   }
 
-
-
   function togglePlayPause() {
     if (window.NativeAudioBridge) {
       window.NativeAudioBridge.toggle();
@@ -1358,7 +1355,6 @@ function switchToLiveMode() {
     masterPlayBtn.classList.toggle("is-playing", isPlaying);
   }
 
-  /* PROTECTED STEPAUDIO */
   function stepAudio(seconds) {
     if (activeIndex === -1) return;
     if (window.NativeAudioBridge) {
@@ -1383,7 +1379,6 @@ function switchToLiveMode() {
     document.querySelectorAll(".slot-card").forEach(c => c.classList.remove("active"));
   }
 
-  /* SCRUB BAR HANDLER */
   let isScrubbing = false;
 
   function handleScrubPointer(e) {
@@ -1429,7 +1424,6 @@ function switchToLiveMode() {
     }
   });
 
-  /* TOUCH SCREEN SEEK / HOLD */
   const touchDeckScreen = document.getElementById("touchDeckScreen");
   let waveTouchStartX = 0;
   let waveBaseTime = 0;
@@ -1471,7 +1465,6 @@ function switchToLiveMode() {
     scrubTooltip.style.display = "none";
   });
 
-  /* DOUBLE TAP SKIPS */
   let lastTapLeft = 0;
   let lastTapRight = 0;
 
@@ -1501,7 +1494,6 @@ function switchToLiveMode() {
     }
   });
 
-  /* SLEEP TIMER CONTROLLER (ACTIVE POLLING & DIRECT HALT) */
   function openSleepModal() {
     document.getElementById("sleepModal").style.display = "flex";
   }
@@ -1528,7 +1520,6 @@ function switchToLiveMode() {
 
     updateTimerDisplay();
 
-    // Polling interval executes every second and halts immediately upon expiration
     sleepIntervalId = setInterval(() => {
       const remainingMs = sleepTargetTimestamp - Date.now();
       if (remainingMs <= 0) {
@@ -1538,7 +1529,6 @@ function switchToLiveMode() {
       }
     }, 1000);
 
-    // Also trigger native service handler if inside APK
     if (window.NativeAudioBridge && window.NativeAudioBridge.startSleepTimer) {
       window.NativeAudioBridge.startSleepTimer(millis);
     }
@@ -1589,7 +1579,6 @@ function switchToLiveMode() {
     closeSleepModal();
   }
 
-  /* Audio Canvas Visualizer */
   function resizeCanvas() {
     canvas.width = canvas.parentElement.clientWidth;
     canvas.height = canvas.parentElement.clientHeight;
