@@ -1216,14 +1216,14 @@
 
     const rawUrl = `${getCurrentLiveUrl()}?ts=${Date.now()}`;
 
-    // Try Android App Bridge First
-    if (playViaNativeBridge(rawUrl, "AIR FM Rainbow 102.6", "Live Broadcast", true)) {
-      return;
-    }
+    // // Try Android App Bridge First
+    // if (playViaNativeBridge(rawUrl, "AIR FM Rainbow 102.6", "Live Broadcast", true)) {
+    //   return;
+    // }
 
     // Web Browser Playback
-    const browserUrl = getBrowserCompatibleUrl(rawUrl);
-    loadSource(browserUrl, true);
+    // const browserUrl = getBrowserCompatibleUrl(rawUrl);
+    loadSource(rawrUrl, true);
   }
 
   function playArchive(index) {
