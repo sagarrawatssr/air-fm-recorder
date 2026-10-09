@@ -737,9 +737,10 @@
 
   // BitGravity and Akashvani HLS feeds support direct browser CORS without proxy blocks
   let streamList = [
+    "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi02/air002_Auto.m3u8",
     "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8",
     "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio004_Auto.m3u8",
-    "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi02/air002_Auto.m3u8"
+    
   ];
   let currentStreamIndex = 0;
 
@@ -753,10 +754,10 @@
         if (Array.isArray(data.fallback_streams)) urls.push(...data.fallback_streams);
         
         if (urls.length > 0) {
-          // If in web browser, deprioritize CloudFront to avoid CORS 403 blocks
-          if (!window.NativeAudioBridge) {
-            urls.sort((a, b) => (a.includes("cloudfront") ? 1 : 0) - (b.includes("cloudfront") ? 1 : 0));
-          }
+          // // If in web browser, deprioritize CloudFront to avoid CORS 403 blocks
+          // if (!window.NativeAudioBridge) {
+          //   urls.sort((a, b) => (a.includes("cloudfront") ? 1 : 0) - (b.includes("cloudfront") ? 1 : 0));
+          // }
           streamList = urls;
           console.log("Synced live stream mirrors:", streamList);
         }
