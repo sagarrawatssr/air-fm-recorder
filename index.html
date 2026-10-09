@@ -1215,6 +1215,7 @@
     totalDurationDisplay.innerText = "LIVE";
 
     let rawUrl = `${getCurrentLiveUrl()}?ts=${Date.now()}`;
+    console.log(" the url to be used with the cloudfare is: ",rawUrl)
 
     // // Try Android App Bridge First
     // if (playViaNativeBridge(rawUrl, "AIR FM Rainbow 102.6", "Live Broadcast", true)) {
