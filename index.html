@@ -1138,9 +1138,6 @@
     }
 
     if (Hls.isSupported()) {
-      // Configure Hls.js with a proxy loader that bypasses the browser CORS block
-      const CORS_RELAY = "https://api.allorigins.win/raw?url=";
-
       hlsInstance = new Hls({
         liveSyncDurationCount: 3,
         enableWorker: true,
@@ -1152,7 +1149,7 @@
           this.load = (context, config, callbacks) => {
             // Only proxy if the request targets cloudfront
             if (context.url.includes("cloudfront.net") && !context.url.startsWith(CORS_RELAY)) {
-              context.url = CORS_RELAY + encodeURIComponent(context.url);
+              context.url = url;
             }
             loader.load(context, config, callbacks);
           };
