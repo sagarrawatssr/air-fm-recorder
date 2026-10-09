@@ -542,7 +542,6 @@
 
   <div class="player-deck">
     <div class="deck-top-row">
-      <!-- FIXED: Changed Mode() to switchToLiveMode() -->
       <button id="livePillBtn" class="live-chip-btn active" onclick="switchToLiveMode()">
         <span class="pulse-dot"></span> LIVE
       </button>
@@ -624,7 +623,6 @@
 
   <div id="toastAlert" class="toast-alert">
     <p id="toastMessage">Recording not found for this date &amp; hour.</p>
-    <!-- FIXED: Changed Mode() to switchToLiveMode() -->
     <button onclick="switchToLiveMode()">Go Live</button>
   </div>
 
@@ -641,7 +639,7 @@
       </button>
       <div class="calendar-display-box" onclick="openCalendarDialog()">
         <svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
-        <span id="calendarDateDisplay">25 Sept 2026</span>
+        <span id="calendarDateDisplay"></span>
       </div>
       <button class="calendar-step-btn" onclick="stepCalendarDay(1)" title="Next Day">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
@@ -665,12 +663,11 @@
     <div class="gcal-dialog" onclick="event.stopPropagation()">
       <div class="gcal-header">
         <span class="gcal-subtext">Select date</span>
-        <div class="gcal-title-date" id="gcalHeaderDate">25 Sept 2026</div>
+        <div class="gcal-title-date" id="gcalHeaderDate"></div>
       </div>
       <div class="gcal-month-nav">
         <button class="gcal-nav-btn" onclick="prevCalendarMonth()"><svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
-        <span id="gcalMonthYear">September 2026</span>
-        <button class="gcal-nav-btn" onclick="nextCalendarMonth()"><svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></button>
+        <span id="gcalMonthYear"></span>
       </div>
       <div class="gcal-body">
         <div class="gcal-weekdays">
@@ -734,13 +731,14 @@
   const REPO_OWNER = "sagarrawatssr";
   const REPO_NAME = "air-fm-recorder";
   const GITHUB_CONFIG_URL = "https://raw.githubusercontent.com/sagarrawatssr/air-fm-recorder/main/streams.json";
+  
+  // Custom Cloudflare Worker Proxy
+  const WORKER_PROXY = "https://calm-tooth-bdc9.sagarsinghrawat162020.workers.dev";
 
-  // BitGravity and Akashvani HLS feeds support direct browser CORS without proxy blocks
   let streamList = [
     "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi02/air002_Auto.m3u8",
     "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio00464kbps.m3u8",
-    "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio004_Auto.m3u8",
-    
+    "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio004_Auto.m3u8"
   ];
   let currentStreamIndex = 0;
 
@@ -752,12 +750,7 @@
         const urls = [];
         if (data.active_stream) urls.push(data.active_stream);
         if (Array.isArray(data.fallback_streams)) urls.push(...data.fallback_streams);
-        
         if (urls.length > 0) {
-          // // If in web browser, deprioritize CloudFront to avoid CORS 403 blocks
-          // if (!window.NativeAudioBridge) {
-          //   urls.sort((a, b) => (a.includes("cloudfront") ? 1 : 0) - (b.includes("cloudfront") ? 1 : 0));
-          // }
           streamList = urls;
           console.log("Synced live stream mirrors:", streamList);
         }
@@ -770,6 +763,13 @@
     
   function getCurrentLiveUrl() {
     return streamList[currentStreamIndex % streamList.length];
+  }
+
+  // Clean helper that safely passes URLs through Cloudflare Worker
+  function getProxiedUrl(targetUrl) {
+    if (!targetUrl || window.NativeAudioBridge) return targetUrl;
+    if (targetUrl.startsWith(WORKER_PROXY)) return targetUrl;
+    return `${WORKER_PROXY}/${targetUrl}`;
   }
 
   /* Elements */
@@ -1036,8 +1036,8 @@
 
     const cur = coreAudio.currentTime || 0;
     const dur = (coreAudio.duration && !isNaN(coreAudio.duration) && coreAudio.duration > 0) 
-                 ? coreAudio.duration 
-                 : (currentDurationSec || 3600);
+                  ? coreAudio.duration 
+                  : (currentDurationSec || 3600);
 
     currentPositionSec = cur;
     currentDurationSec = dur;
@@ -1123,71 +1123,65 @@
   }
 
   function loadSource(url, isLive) {
-    url = `https://calm-tooth-bdc9.sagarsinghrawat162020.workers.dev/${url}`
-  if (hlsInstance) {
-    hlsInstance.destroy();
-    hlsInstance = null;
-  }
-
-  if (isLive) {
-    startLiveStallWatchdog();
-
-    // If running in Android APK, ExoPlayer plays the raw CloudFront link directly
-    if (window.NativeAudioBridge) {
-      return;
+    if (hlsInstance) {
+      hlsInstance.destroy();
+      hlsInstance = null;
     }
 
-    if (Hls.isSupported()) {
-      hlsInstance = new Hls({
-        liveSyncDurationCount: 3,
-        enableWorker: true,
-        // Rewrite every manifest and segment request to include the CORS relay
-        pLoader: function(config) {
-          const loader = new Hls.DefaultConfig.loader(config);
-          this.abort = () => loader.abort();
-          this.destroy = () => loader.destroy();
-          this.load = (context, config, callbacks) => {
-            // Only proxy if the request targets cloudfront
-            if (context.url.includes("cloudfront.net") && !context.url.startsWith(CORS_RELAY)) {
-              context.url = url;
-            }
-            loader.load(context, config, callbacks);
-          };
-        }
-      });
+    if (isLive) {
+      startLiveStallWatchdog();
 
-      hlsInstance.loadSource(url);
-      hlsInstance.attachMedia(coreAudio);
+      // If running in Android APK, ExoPlayer plays the link directly
+      if (window.NativeAudioBridge) {
+        return;
+      }
 
-      hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+      // Live streams proxy through Worker to avoid browser CORS blocks
+      const proxiedLiveUrl = getProxiedUrl(url);
+
+      if (Hls.isSupported()) {
+        hlsInstance = new Hls({
+          liveSyncDurationCount: 3,
+          enableWorker: true,
+          // Intercept sub-manifest and .ts segment requests to route via proxy
+          pLoader: function(config) {
+            const loader = new Hls.DefaultConfig.loader(config);
+            this.abort = () => loader.abort();
+            this.destroy = () => loader.destroy();
+            this.load = (context, conf, callbacks) => {
+              if (context.url && !context.url.startsWith(WORKER_PROXY)) {
+                context.url = getProxiedUrl(context.url);
+              }
+              loader.load(context, conf, callbacks);
+            };
+          }
+        });
+
+        hlsInstance.loadSource(proxiedLiveUrl);
+        hlsInstance.attachMedia(coreAudio);
+
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+          coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
+        });
+
+        hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            console.warn("HLS fatal error:", data.type, data.details);
+            onLiveStreamError();
+          }
+        });
+      } else if (coreAudio.canPlayType("application/vnd.apple.mpegurl")) {
+        // Safari / iOS Native HLS
+        coreAudio.src = proxiedLiveUrl;
         coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
-      });
-
-      hlsInstance.on(Hls.Events.ERROR, (event, data) => {
-        if (data.fatal) {
-          console.warn("HLS fatal error:", data.type, data.details);
-          onLiveStreamError();
-        }
-      });
-    } else if (coreAudio.canPlayType("application/vnd.apple.mpegurl")) {
-      // Safari / iOS handles HLS natively at the OS layer
+      }
+    } else {
+      // Archive MP3 direct playback
+      stopLiveStallWatchdog();
       coreAudio.src = url;
+      coreAudio.playbackRate = speedOptions[currentSpeedIndex];
       coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
     }
-  } else {
-    stopLiveStallWatchdog();
-    coreAudio.src = url;
-    coreAudio.playbackRate = speedOptions[currentSpeedIndex];
-    coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
-  }
-}
-
-  function getBrowserCompatibleUrl(rawUrl) {
-    if (window.NativeAudioBridge) {
-      return rawUrl;
-    }
-    // Proxies like corsproxy fail on CloudFront with 403. Return direct stream URL.
-    return rawUrl;
   }
 
   function switchToLiveMode() {
@@ -1212,15 +1206,12 @@
     totalDurationDisplay.innerText = "LIVE";
 
     let rawUrl = `${getCurrentLiveUrl()}?ts=${Date.now()}`;
-    console.log(" the url to be used with the cloudfare is: ",rawUrl)
+    console.log("Playing live stream:", rawUrl);
 
-    // // Try Android App Bridge First
-    // if (playViaNativeBridge(rawUrl, "AIR FM Rainbow 102.6", "Live Broadcast", true)) {
-    //   return;
-    // }
+    if (playViaNativeBridge(rawUrl, "AIR FM Rainbow 102.6", "Live Broadcast", true)) {
+      return;
+    }
 
-    // Web Browser Playback
-    // const browserUrl = getBrowserCompatibleUrl(rawUrl);
     loadSource(rawUrl, true);
   }
 
