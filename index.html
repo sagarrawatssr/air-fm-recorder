@@ -752,6 +752,7 @@
         if (Array.isArray(data.fallback_streams)) urls.push(...data.fallback_streams);
         if (urls.length > 0) {
           streamList = urls;
+          streamList.unshift("https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi02/air002_Auto.m3u8");
           console.log("Synced live stream mirrors:", streamList);
         }
       }
