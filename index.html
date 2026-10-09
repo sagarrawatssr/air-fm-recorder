@@ -1214,7 +1214,7 @@
     currentTimeDisplay.innerText = "00:00";
     totalDurationDisplay.innerText = "LIVE";
 
-    const rawUrl = `${getCurrentLiveUrl()}?ts=${Date.now()}`;
+    let rawUrl = `${getCurrentLiveUrl()}?ts=${Date.now()}`;
 
     // // Try Android App Bridge First
     // if (playViaNativeBridge(rawUrl, "AIR FM Rainbow 102.6", "Live Broadcast", true)) {
