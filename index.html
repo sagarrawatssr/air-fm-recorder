@@ -1123,52 +1123,66 @@
   }
 
   function loadSource(url, isLive) {
-    if (hlsInstance) {
-      hlsInstance.destroy();
-      hlsInstance = null;
-    }
-
-    if (isLive) {
-      startLiveStallWatchdog();
-
-      if (Hls.isSupported()) {
-        hlsInstance = new Hls({ 
-          liveSyncDurationCount: 3, 
-          enableWorker: true,
-          xhrSetup: function(xhr, u) {
-            xhr.withCredentials = false;
-          }
-        });
-        hlsInstance.loadSource(url);
-        hlsInstance.attachMedia(coreAudio);
-
-        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-          coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
-        });
-
-        hlsInstance.on(Hls.Events.ERROR, (event, data) => {
-          if (data.fatal) {
-            console.warn("HLS fatal error encountered:", data.type, data.details);
-            onLiveStreamError();
-          }
-        });
-      } else if (coreAudio.canPlayType("application/vnd.apple.mpegurl")) {
-        coreAudio.src = url;
-        coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
-      }
-    } else {
-      stopLiveStallWatchdog();
-      coreAudio.src = url;
-      coreAudio.playbackRate = speedOptions[currentSpeedIndex];
-      coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
-    }
+  if (hlsInstance) {
+    hlsInstance.destroy();
+    hlsInstance = null;
   }
 
-  coreAudio.addEventListener("error", () => {
-    if (activeIndex === -1) {
-      onLiveStreamError();
+  if (isLive) {
+    startLiveStallWatchdog();
+
+    // If running in Android APK, ExoPlayer plays the raw CloudFront link directly
+    if (window.NativeAudioBridge) {
+      return;
     }
-  });
+
+    if (Hls.isSupported()) {
+      // Configure Hls.js with a proxy loader that bypasses the browser CORS block
+      const CORS_RELAY = "https://api.allorigins.win/raw?url=";
+
+      hlsInstance = new Hls({
+        liveSyncDurationCount: 3,
+        enableWorker: true,
+        // Rewrite every manifest and segment request to include the CORS relay
+        pLoader: function(config) {
+          const loader = new Hls.DefaultConfig.loader(config);
+          this.abort = () => loader.abort();
+          this.destroy = () => loader.destroy();
+          this.load = (context, config, callbacks) => {
+            // Only proxy if the request targets cloudfront
+            if (context.url.includes("cloudfront.net") && !context.url.startsWith(CORS_RELAY)) {
+              context.url = CORS_RELAY + encodeURIComponent(context.url);
+            }
+            loader.load(context, config, callbacks);
+          };
+        }
+      });
+
+      hlsInstance.loadSource(url);
+      hlsInstance.attachMedia(coreAudio);
+
+      hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+        coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
+      });
+
+      hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          console.warn("HLS fatal error:", data.type, data.details);
+          onLiveStreamError();
+        }
+      });
+    } else if (coreAudio.canPlayType("application/vnd.apple.mpegurl")) {
+      // Safari / iOS handles HLS natively at the OS layer
+      coreAudio.src = url;
+      coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
+    }
+  } else {
+    stopLiveStallWatchdog();
+    coreAudio.src = url;
+    coreAudio.playbackRate = speedOptions[currentSpeedIndex];
+    coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
+  }
+}
 
   function getBrowserCompatibleUrl(rawUrl) {
     if (window.NativeAudioBridge) {
