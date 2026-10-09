@@ -21,9 +21,11 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Extract Stream Link from streams.json & Patch App Assets
         run: |
@@ -44,12 +46,12 @@ jobs:
 
           echo "Target Stream from streams.json: $TARGET_STREAM"
 
-          # 2. Patch Java/Kotlin source code and assets (index.html) with the stream URL
+          # 2. Patch Java/Kotlin source code with the target stream URL
           find . -type f \( -name "*.java" -o -name "*.kt" \) \
             -not -path "*/.*" \
             -exec sed -i -E "s|https?://[a-zA-Z0-9./_-]+\.m3u8|$TARGET_STREAM|g" {} +
 
-          # 3. If your Android app bundles index.html inside assets, update it too
+          # 3. Patch index.html assets if bundled in Android project
           find . -type f -name "index.html" \
             -not -path "*/.*" \
             -exec sed -i -E "s|https?://[a-zA-Z0-9./_-]+\.m3u8|$TARGET_STREAM|g" {} +
