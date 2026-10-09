@@ -542,7 +542,7 @@
 
   <div class="player-deck">
     <div class="deck-top-row">
-      <button id="livePillBtn" class="live-chip-btn active" onclick="Mode()">
+      <button id="livePillBtn" class="live-chip-btn active" onclick="switchToLiveMode()">
         <span class="pulse-dot"></span> LIVE
       </button>
       <span id="streamStateLabel" class="mode-indicator">Live Broadcast</span>
@@ -1324,30 +1324,7 @@ function switchToLiveMode() {
     }
   }
 
-  function loadSource(url, isLive) {
-    if (hlsInstance) {
-      hlsInstance.destroy();
-      hlsInstance = null;
-    }
 
-    if (isLive) {
-      if (Hls.isSupported()) {
-        hlsInstance = new Hls({ liveSyncDurationCount: 3, enableWorker: true });
-        hlsInstance.loadSource(url);
-        hlsInstance.attachMedia(coreAudio);
-        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-          coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
-        });
-      } else if (coreAudio.canPlayType("application/vnd.apple.mpegurl")) {
-        coreAudio.src = url;
-        coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
-      }
-    } else {
-      coreAudio.src = url;
-      coreAudio.playbackRate = speedOptions[currentSpeedIndex];
-      coreAudio.play().then(() => setPlayState(true)).catch(() => setPlayState(false));
-    }
-  }
 
   function togglePlayPause() {
     if (window.NativeAudioBridge) {
