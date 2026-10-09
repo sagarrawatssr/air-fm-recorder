@@ -1,0 +1,105 @@
+name: Build and Package Updated APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version Name (e.g. 1.2.0)'
+        required: false
+        default: '1.2.0'
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Extract Stream Link from streams.json & Patch App Assets
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+
+          # 1. Read active_stream from streams.json in repository root
+          if [ ! -f "streams.json" ]; then
+            echo "Error: streams.json not found in repository root!"
+            exit 1
+          fi
+
+          TARGET_STREAM=$(jq -r '.active_stream' streams.json)
+
+          if [ -z "$TARGET_STREAM" ] || [ "$TARGET_STREAM" = "null" ]; then
+            echo "Error: active_stream field is missing or empty in streams.json!"
+            exit 1
+          fi
+
+          echo "Target Stream from streams.json: $TARGET_STREAM"
+
+          # 2. Patch Java/Kotlin source code and assets (index.html) with the stream URL
+          find . -type f \( -name "*.java" -o -name "*.kt" \) \
+            -not -path "*/.*" \
+            -exec sed -i -E "s|https?://[a-zA-Z0-9./_-]+\.m3u8|$TARGET_STREAM|g" {} +
+
+          # 3. If your Android app bundles index.html inside assets, update it too
+          find . -type f -name "index.html" \
+            -not -path "*/.*" \
+            -exec sed -i -E "s|https?://[a-zA-Z0-9./_-]+\.m3u8|$TARGET_STREAM|g" {} +
+
+          echo "Successfully injected target stream into project sources."
+
+      - name: Grant Execute Permission to Gradlew
+        run: chmod +x gradlew || true
+
+      - name: Compile APK
+        run: |
+          if [ -f "./gradlew" ]; then
+            ./gradlew assembleRelease --stacktrace || ./gradlew assembleDebug --stacktrace
+          else
+            echo "Searching for gradlew in subdirectories..."
+            find . -name "gradlew" -exec chmod +x {} \; -exec {} assembleRelease \; || find . -name "gradlew" -exec {} assembleDebug \;
+          fi
+
+      - name: Prepare Built APK Output
+        id: prepare_apk
+        run: |
+          mkdir -p build_output
+          APK_FILE=$(find . -name "*.apk" | grep -E "(release|debug)" | head -n 1)
+
+          if [ -z "$APK_FILE" ]; then
+            echo "Error: APK generation failed. No APK file found!"
+            exit 1
+          fi
+
+          echo "Discovered APK: $APK_FILE"
+          cp "$APK_FILE" build_output/AIR_FM_Rainbow_Delhi_Update.apk
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIR_FM_Rainbow_APK
+          path: build_output/AIR_FM_Rainbow_Delhi_Update.apk
+          retention-days: 14
+
+      - name: Publish Update Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.event.inputs.version_name }}"
+          [ -z "$VERSION" ] && VERSION="v$(date +'%Y%m%d%H%M')"
+          TAG="app-${VERSION}"
+
+          STREAM_USED=$(jq -r '.active_stream' streams.json)
+
+          gh release create "$TAG" "build_output/AIR_FM_Rainbow_Delhi_Update.apk" \
+            --title "App Update: ${VERSION}" \
+            --notes "Generated build configured with active stream from streams.json: ${STREAM_USED}" \
+            --clobber
