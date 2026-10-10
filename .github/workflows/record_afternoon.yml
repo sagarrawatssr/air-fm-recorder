@@ -1,4 +1,4 @@
-Name: "2. Record FM Rainbow (01 PM - 07 PM)"
+name: "2. Record FM Rainbow (01 PM - 07 PM)"
 
 on:
   workflow_dispatch:
