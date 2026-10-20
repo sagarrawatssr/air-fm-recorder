@@ -53,7 +53,7 @@ jobs:
             # Calculate seconds remaining until :54 mark
             MIN="$(TZ='Asia/Kolkata' date +'%-M')"
             SEC="$(TZ='Asia/Kolkata' date +'%-S')"
-            TARGET_MIN=54
+            TARGET_MIN=58
             REMAINING_SECS=$(( (TARGET_MIN - MIN) * 60 - SEC ))
 
             if [ "$MIN" -lt "$TARGET_MIN" ] && [ "$REMAINING_SECS" -ge 1800 ]; then
