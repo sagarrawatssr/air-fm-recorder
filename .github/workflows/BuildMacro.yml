@@ -1,11 +1,11 @@
 name: Build Android APK
 
-on: 
+on:
   push:
     branches: [ "main", "master" ]
   workflow_dispatch:
 
-jobs:  
+jobs:
   build:
     runs-on: ubuntu-latest
 
@@ -18,13 +18,13 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
+      # Installs Gradle automatically so gradlew is not needed
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: gradle assembleDebug --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -32,4 +32,3 @@ jobs:
           name: sleep-timer-widget-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
-          
