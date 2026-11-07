@@ -19,9 +19,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # Installs Gradle automatically so gradlew is not needed
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
 
       - name: Build Debug APK
         run: gradle assembleDebug --stacktrace
