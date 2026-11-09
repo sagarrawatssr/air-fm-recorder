@@ -1,36 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Connectivity permissions -->
+    <!-- Radios & Network Permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+
+    <!-- Background Execution & Notification -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
         android:icon="@android:drawable/sym_def_app_icon"
-        android:label="Sleep Toggle Widget"
+        android:label="Timer Automation"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+        android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
 
-        <!-- App Widget Receiver -->
-        <receiver
-            android:name=".SleepWidgetProvider"
-            android:exported="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.example.sleeptoggle.ACTION_SLEEP_NOW" />
-                <action android:name="com.example.sleeptoggle.ACTION_TOGGLE_BT" />
-                <action android:name="com.example.sleeptoggle.ACTION_TOGGLE_WIFI" />
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/sleep_widget_info" />
-        </receiver>
+        </activity>
+
+        <service
+            android:name=".SleepTimerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
 
     </application>
 </manifest>
