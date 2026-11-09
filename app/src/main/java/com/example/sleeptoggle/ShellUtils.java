@@ -1,20 +1,32 @@
 package com.example.sleeptoggle;
 
-import rikka.shizuku.Shizuku;
+import java.io.DataOutputStream;
 
 public class ShellUtils {
 
     public static void runCommand(String command) {
+        Process process = null;
+        DataOutputStream os = null;
         try {
-            if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() == 0) {
-                Process process = Shizuku.newProcess(new String[]{"sh", "-c", command}, null, null);
-                process.waitFor();
-            } else {
-                Process process = Runtime.getRuntime().exec(new String[]{"su", "-c", command});
-                process.waitFor();
+            // Try executing via root shell first, fallback to standard sh
+            try {
+                process = Runtime.getRuntime().exec("su");
+            } catch (Exception e) {
+                process = Runtime.getRuntime().exec("sh");
             }
+
+            os = new DataOutputStream(process.getOutputStream());
+            os.writeBytes(command + "\n");
+            os.writeBytes("exit\n");
+            os.flush();
+            process.waitFor();
         } catch (Exception e) {
             e.printStackTrace();
+        } finally {
+            try {
+                if (os != null) os.close();
+                if (process != null) process.destroy();
+            } catch (Exception ignored) {}
         }
     }
 }
